@@ -1,0 +1,66 @@
+# Runtime services. Default: postgres + docling-serve (run app locally via `pnpm dev`).
+# Profiles: "app" = containerized server, "vlm" = Ollama.
+services:
+  invex-server:
+    build:
+      context: .
+      dockerfile: packages/server/Dockerfile
+    depends_on:
+      docling-serve:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://invex:invex@postgres:5432/invex
+      DOCLING_URL: http://docling-serve:5001
+      PORT: "8080"
+      # VLM knobs interpolate from .env/host env to match local `pnpm dev`; unset = off
+      VLM_API_KEY: ${VLM_API_KEY:-}
+      VLM_ENABLED: ${VLM_ENABLED:-}
+      VLM_MODEL: ${VLM_MODEL:-}
+      VLM_URL: http://ollama:11434
+    ports:
+      - "8080:8080"
+    profiles: ["app"]
+
+  postgres:
+    environment:
+      POSTGRES_DB: invex
+      POSTGRES_PASSWORD: invex
+      POSTGRES_USER: invex
+    healthcheck:
+      interval: 5s
+      retries: 10
+      test: ["CMD-SHELL", "pg_isready -U invex -d invex"]
+      timeout: 3s
+    image: postgres:17-alpine
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  docling-serve:
+    # DoclingDocument mapper is fixture-pinned to this contract; upgrade deliberately
+    environment:
+      DOCLING_SERVE_ENABLE_UI: "false"
+    healthcheck:
+      interval: 10s
+      retries: 30
+      start_period: 300s # first start downloads layout/TableFormer models — be patient
+      test: ["CMD-SHELL", "curl -sf http://localhost:5001/health || exit 1"]
+      timeout: 5s
+    image: quay.io/docling-project/docling-serve-cpu:v1.26.0
+    ports:
+      - "5001:5001"
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    profiles: ["vlm"]
+    volumes:
+      - ollama:/root/.ollama
+
+volumes:
+  ollama:
+  pgdata:

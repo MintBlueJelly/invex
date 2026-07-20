@@ -1,0 +1,19 @@
+{
+  "name": "@invex/core",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "InvEx pure domain: canonical schema, constraint solver, classifier, rule engine, templates. Zero I/O.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "date-fns": "^4.4.0",
+    "decimal.js": "^10.6.0",
+    "fast-xml-parser": "^5.9.3",
+    "zod": "^4.4.3"
+  }
+}

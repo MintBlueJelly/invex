@@ -1,0 +1,36 @@
+{
+  "triage": {
+    "pagesToScan": 3,
+    "textCharThreshold": 50
+  },
+  "textGate": {
+    "minDictHitRate": 0.55,
+    "maxReplacementCharRatio": 0.05,
+    "maxSingleCharTokenRatio": 0.4,
+    "minTokensForVerdict": 10
+  },
+  "reconcile": {
+    "vatRates": [19, 7, 0],
+    "toleranceHeader": "0.02",
+    "toleranceLine": "0.01",
+    "lineSumSlackPerLine": "0.005",
+    "maxRepairPasses": 5
+  },
+  "defaults": {
+    "currency": "EUR"
+  },
+  "templates": {
+    "induceFromRuleEngine": true,
+    "minFieldConfidence": 0.5
+  },
+  "vlm": {
+    "enabled": false,
+    "rasterDpi": 150,
+    "maxPages": 5,
+    "requestTimeoutMs": 300000
+  },
+  "worker": {
+    "pollIntervalMs": 500,
+    "maxAttempts": 3
+  }
+}

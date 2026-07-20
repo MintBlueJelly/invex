@@ -1,0 +1,28 @@
+# Dependencies & build output
+*.tsbuildinfo
+dist/
+node_modules/
+
+# Test & coverage
+coverage/
+
+# Local environment
+.env
+.env.local
+
+# Logs
+*.log
+
+# Generated PDFs & real-invoice drop zone — real samples must never enter the (public) repo
+out/
+fixtures-drop/*
+!fixtures-drop/README.md
+
+# gitops convention: *.nocommit.* stays local, never committed
+*.nocommit
+*.nocommit.*
+
+# Raw key/certificate material
+*.key
+*.pem
+*.secret

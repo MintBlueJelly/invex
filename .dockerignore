@@ -1,0 +1,19 @@
+# Must not overlay the in-image pnpm install
+**/node_modules/
+node_modules/
+
+# Mirrors .gitignore
+*.log
+*.tsbuildinfo
+.env
+.env.local
+coverage/
+dist/
+fixtures-drop/
+out/
+
+# Context-only noise. Unlike .gitignore, *.md is ROOT-LEVEL only — never widen to **/*.md, server reads config/prompts/*.md at runtime
+*.md
+*.png
+.git/
+docker-compose.yml

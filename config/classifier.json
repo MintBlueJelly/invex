@@ -1,0 +1,15 @@
+{
+  "$comment": "PROVISIONAL weights/bands — briefing §5/§11: calibrate empirically on a labeled sample of the real document mix. Feature vectors are logged on every document to enable calibration.",
+  "weights": {
+    "F1_headingKeyword": 3,
+    "F2_invoiceNumberPattern": 2,
+    "F3_taxIdPresent": 2,
+    "F4_labeledInvoiceDate": 1,
+    "F5_vatBreakdownBlock": 2,
+    "F6_currencyAmountTable": 2
+  },
+  "bands": {
+    "invoiceMin": 7,
+    "nonInvoiceMax": 3
+  }
+}

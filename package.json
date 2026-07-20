@@ -1,0 +1,27 @@
+{
+  "name": "invex",
+  "private": true,
+  "version": "0.1.0",
+  "description": "InvEx — deterministic-first PDF invoice extraction pipeline",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@11.10.0",
+  "scripts": {
+    "build": "pnpm -r --sequential run typecheck",
+    "typecheck": "pnpm -r --sequential run typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dev": "pnpm --filter @invex/server dev",
+    "smoke": "pnpm --filter @invex/server smoke",
+    "fixtures": "pnpm --filter @invex/fixtures generate",
+    "db:generate": "pnpm --filter @invex/server db:generate"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.0",
+    "tsx": "^4.23.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10"
+  }
+}
