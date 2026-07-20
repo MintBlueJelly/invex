@@ -1,5 +1,9 @@
 packages:
   - "packages/*"
+overrides:
+  # The deprecated @esbuild-kit subtree (via drizzle-kit) pins a vulnerable
+  # esbuild 0.18 (GHSA-67mh-4wv8-2f99) and will never update — force-patch it
+  "@esbuild-kit/core-utils>esbuild": ^0.25.0
 allowBuilds:
   cpu-features: false
   esbuild: true
