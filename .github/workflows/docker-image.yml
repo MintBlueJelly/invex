@@ -1,19 +1,33 @@
 name: CI
 
 on:
+  # Prose-only pushes must not build: every run reaching `build` mints a version
+  # tag, image and Release. Paths, not commit message — a `docs:` commit can
+  # still touch code. Later patterns win, hence the trailing re-include; never
+  # blanket-exclude `**.md`, which would swallow the runtime VLM prompts in
+  # config/prompts/ and docs/known-bugs.md (a test enforces it).
   push:
     branches: ["main"]
+    paths:
+      - "**"
+      - "!*.md"
+      - "!docs/**"
+      - "!LICENSE"
+      - "docs/known-bugs.md"
   pull_request:
     branches: ["main"]
+    paths:
+      - "**"
+      - "!*.md"
+      - "!docs/**"
+      - "!LICENSE"
+      - "docs/known-bugs.md"
 
 permissions:
   contents: write # create version tags
   packages: write # push image to ghcr.io
 
 jobs:
-  # Gate. Until this existed, CI ran neither the tests nor the typecheck: the
-  # image was built and pushed and nothing else, so any defect could reach main
-  # — and therefore the single-replica deployment — with a green pipeline.
   check:
     runs-on: ubuntu-latest
     steps:
@@ -34,9 +48,8 @@ jobs:
       - name: Tests + coverage
         run: pnpm test:cov
 
-      # Proves the generators still run. NOT a drift guard: out/ is gitignored,
-      # so there is nothing committed to diff against. The real guard arrives
-      # with the committed golden scenarios.
+      # Proves the generators still run; not a drift guard — out/ is gitignored,
+      # so there is nothing committed to diff against.
       - name: Fixtures generate
         run: pnpm fixtures ./out
 
@@ -60,8 +73,7 @@ jobs:
           path: coverage/
           retention-days: 14
 
-  # Reports which known bugs are still open. EXPECTED to be red — it is the
-  # backlog, not a gate, hence continue-on-error.
+  # The backlog, not a gate — expected to be red.
   known-bugs:
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -77,7 +89,6 @@ jobs:
         run: pnpm test:known-bugs
 
   build:
-    # A red test now blocks the push, the version tag AND the release.
     needs: [check]
     runs-on: ubuntu-latest
     steps:
@@ -92,10 +103,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Compute the next semver from Conventional Commits since the last tag.
-      # dry_run: the tag is NOT created yet, so a failed build never leaves an
-      # orphan version tag. Bump rules: feat! / BREAKING CHANGE -> major,
-      # feat -> minor, anything else (fix, chore, …) -> patch.
       - name: Compute next version
         id: ver
         if: github.event_name != 'pull_request'
@@ -103,7 +110,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           default_bump: patch
-          dry_run: true
+          dry_run: true # a failed build must not leave an orphan version tag
 
       - name: Extract metadata
         id: meta
@@ -124,8 +131,8 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-      # Only now, after a successful build+push, create & push the git tag.
-      # custom_tag pins it to the version computed above (no recompute drift).
+      # Tagged only once the image is pushed, pinned to the version computed
+      # above rather than recomputed.
       - name: Create version tag
         if: github.event_name != 'pull_request' && success()
         uses: mathieudutour/github-tag-action@v6.2
@@ -133,7 +140,6 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           custom_tag: ${{ steps.ver.outputs.new_version }}
 
-      # Publish a GitHub Release for that tag, using the auto-generated changelog.
       - name: Create GitHub release
         if: github.event_name != 'pull_request' && success()
         uses: softprops/action-gh-release@v2
