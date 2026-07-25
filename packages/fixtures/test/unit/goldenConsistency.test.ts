@@ -2,6 +2,7 @@ import { zCanonicalInvoice, type CanonicalInvoice } from "@invex/core";
 import Decimal from "decimal.js";
 import { describe, expect, it } from "vitest";
 import { loadGoldens, type Golden } from "../../src/goldens";
+import type { LiteralInvoiceDoc } from "../../src/literal/spec";
 
 /**
  * A hand-authored oracle can have typos. These guards VERIFY the goldens; they
@@ -27,6 +28,10 @@ function printedToDot(text: string, locale: "de" | "en"): string | null {
 const goldens = loadGoldens();
 const invoiceGoldens = goldens.filter((g): g is Golden & { expected: { canonical: CanonicalInvoice } } =>
   g.expected.canonical !== null,
+);
+/** Only a synthetic scenario has a printed page to compare the expectation against. */
+const printedGoldens = invoiceGoldens.filter(
+  (g): g is typeof g & { render: { doc: LiteralInvoiceDoc } } => g.render?.doc !== undefined,
 );
 
 describe("golden scenarios", () => {
@@ -92,12 +97,13 @@ describe("committed canonical invoices are internally sound", () => {
 });
 
 describe("the printed page and the expectation agree", () => {
+  // Real-PDF scenarios are excluded: their page is the PDF, not a literal doc.
   /**
    * The guard that catches "you edited the PDF text and forgot the
    * expectation". Every amount printed on the page must appear somewhere in the
    * canonical invoice, and every canonical amount must be printed.
    */
-  it.each(invoiceGoldens.map((g) => [g.id, g] as const))("%s: every printed amount appears in the canonical", (_id, g) => {
+  it.each(printedGoldens.map((g) => [g.id, g] as const))("%s: every printed amount appears in the canonical", (_id, g) => {
     const doc = g.render.doc;
     const printed = new Set<string>();
     for (const l of doc.lines) {
@@ -123,16 +129,16 @@ describe("the printed page and the expectation agree", () => {
     expect(missing, `printed but absent from the canonical invoice`).toEqual([]);
   });
 
-  it.each(invoiceGoldens.map((g) => [g.id, g] as const))("%s: header fields are printed as the canonical states", (_id, g) => {
+  it.each(printedGoldens.map((g) => [g.id, g] as const))("%s: header fields are printed as the canonical states", (_id, g) => {
     const printedValues = g.render.doc.headerFields.map((f) => f.valueText);
     expect(printedValues).toContain(g.expected.canonical.invoiceNumber);
   });
 
-  it.each(invoiceGoldens.map((g) => [g.id, g] as const))("%s: the seller name is printed verbatim", (_id, g) => {
+  it.each(printedGoldens.map((g) => [g.id, g] as const))("%s: the seller name is printed verbatim", (_id, g) => {
     expect(g.render.doc.seller.nameText).toBe(g.expected.canonical.seller.name);
   });
 
-  it.each(invoiceGoldens.map((g) => [g.id, g] as const))("%s: one canonical line item per printed row", (_id, g) => {
+  it.each(printedGoldens.map((g) => [g.id, g] as const))("%s: one canonical line item per printed row", (_id, g) => {
     expect(g.expected.canonical.lineItems).toHaveLength(g.render.doc.lines.length);
   });
 });

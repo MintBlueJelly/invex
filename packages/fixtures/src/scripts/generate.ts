@@ -10,6 +10,7 @@ import {
   makeZugferdPdf,
   sampleSpec,
 } from "../index";
+import { goldenPdf, isSynthetic, loadGoldens } from "../goldens";
 
 /**
  * Writes the standard fixture set + expected.json (the smoke harness assertion
@@ -50,8 +51,16 @@ for (const [name, bytes] of Object.entries(files)) {
   await writeFile(join(outDir, name), bytes);
 }
 
-/** Expected-outcome matrix (plan §Testing): consumed by `pnpm smoke --expect`. */
-const expected = {
+/**
+ * Expected-outcome matrix, consumed by `pnpm smoke --expect`.
+ *
+ * The entries below are DERIVED from computeInvoice — the same function that
+ * rendered the PDFs above — so they can never disagree with it. That is the
+ * circularity the golden corpus replaces; these remain only for the fixture
+ * kinds that have no golden yet (ZUGfERD, garbage text layer, scanned).
+ * The golden entries appended afterwards carry hand-authored expectations.
+ */
+const expected: Record<string, unknown> = {
   "zugferd-ok.pdf": {
     route: "zugferd",
     terminalStatus: "committed",
@@ -81,6 +90,28 @@ const expected = {
     route: "image",
   },
 };
-await writeFile(join(outDir, "expected.json"), JSON.stringify(expected, null, 2));
+// ── golden scenarios ────────────────────────────────────────────────────────
+// A pure COPY: every value is carried verbatim from a hand-authored scenario
+// whose printed page and expected canonical invoice were written independently.
+let goldenCount = 0;
+for (const g of loadGoldens()) {
+  if (!isSynthetic(g)) {
+    console.log(`skipping ${g.id} (drafted from a real PDF: ${g.source?.pdfFile ?? "unknown"})`);
+    continue;
+  }
+  const name = `${g.id}.pdf`;
+  await writeFile(join(outDir, name), await goldenPdf(g));
+  goldenCount++;
+  expected[name] = {
+    ...(g.expected.smoke ?? {}),
+    // Only a reviewed scenario may assert a canonical invoice; an unreviewed
+    // draft is the pipeline's own output and would assert self-agreement.
+    ...(g.reviewed && g.expected.canonical ? { canonical: g.expected.canonical } : {}),
+  };
+}
 
-console.log(`wrote ${Object.keys(files).length} fixtures + expected.json to ${outDir}`);
+await writeFile(join(outDir, "expected.json"), `${JSON.stringify(expected, null, 2)}\n`);
+
+console.log(
+  `wrote ${Object.keys(files).length} legacy fixture(s) + ${goldenCount} golden(s) + expected.json to ${outDir}`,
+);

@@ -16,18 +16,51 @@ interface Expectation {
   gross?: string;
   lineCount?: number;
   hasEvents?: string[];
+  notEvents?: string[];
+  /**
+   * The full canonical invoice, compared field by field under
+   * --strict-canonical. Without it the harness checks gross and line COUNT
+   * only, so every description, unit price and VAT row goes unverified end to
+   * end — which is how a wrong-but-plausible extraction passes a smoke run.
+   */
+  canonical?: Record<string, unknown>;
+}
+
+/** Field-level diff, so a mismatch says WHICH field rather than "not equal". */
+export function diffCanonical(want: unknown, got: unknown, path = ""): string[] {
+  if (want === null || typeof want !== "object") {
+    return Object.is(want, got) ? [] : [`${path || "<root>"}: expected ${JSON.stringify(want)}, got ${JSON.stringify(got)}`];
+  }
+  if (Array.isArray(want)) {
+    if (!Array.isArray(got)) return [`${path}: expected an array, got ${JSON.stringify(got)}`];
+    const out: string[] = [];
+    if (want.length !== got.length) out.push(`${path}: expected ${want.length} entries, got ${got.length}`);
+    for (let i = 0; i < Math.min(want.length, got.length); i++) {
+      out.push(...diffCanonical(want[i], got[i], `${path}.${i}`));
+    }
+    return out;
+  }
+  if (got === null || typeof got !== "object" || Array.isArray(got)) {
+    return [`${path}: expected an object, got ${JSON.stringify(got)}`];
+  }
+  const out: string[] = [];
+  for (const [k, v] of Object.entries(want as Record<string, unknown>)) {
+    out.push(...diffCanonical(v, (got as Record<string, unknown>)[k], path ? `${path}.${k}` : k));
+  }
+  return out;
 }
 
 const TERMINAL = new Set(["committed", "exported_markdown", "pending_review", "failed", "segmented"]);
 
 function parseArgs(argv: string[]) {
-  const args = { folder: "", base: "http://localhost:8080", expect: "", timeoutS: 120 };
+  const args = { folder: "", base: "http://localhost:8080", expect: "", timeoutS: 120, strictCanonical: false };
   const rest: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]!;
     if (a === "--base") args.base = argv[++i] ?? args.base;
     else if (a === "--expect") args.expect = argv[++i] ?? "";
     else if (a === "--timeout") args.timeoutS = Number(argv[++i] ?? args.timeoutS);
+    else if (a === "--strict-canonical") args.strictCanonical = true;
     else rest.push(a);
   }
   args.folder = rest[0] ?? "./fixtures-drop";
@@ -141,6 +174,14 @@ export async function runBatchIngest(argv: string[]): Promise<number> {
       if (exp.lineCount !== undefined && lines !== exp.lineCount) problems.push(`lineCount: expected ${exp.lineCount}, got ${lines}`);
       for (const ev of exp.hasEvents ?? []) {
         if (!trace.events.some((e) => e.event === ev)) problems.push(`missing expected event ${ev}`);
+      }
+      for (const ev of exp.notEvents ?? []) {
+        if (trace.events.some((e) => e.event === ev)) problems.push(`unexpected event ${ev}`);
+      }
+      if (args.strictCanonical && exp.canonical) {
+        const diffs = diffCanonical(exp.canonical, result);
+        for (const d of diffs.slice(0, 12)) problems.push(`canonical ${d}`);
+        if (diffs.length > 12) problems.push(`canonical: ${diffs.length - 12} further difference(s)`);
       }
       if (problems.length > 0) {
         failures.push(`${file}:\n    ${problems.join("\n    ")}`);

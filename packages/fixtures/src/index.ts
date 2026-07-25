@@ -33,6 +33,7 @@ export {
   goldenDocling,
   goldenOcrDocling,
   goldenPdf,
+  isSynthetic,
   layoutOf,
   loadGolden,
   loadGoldens,

@@ -1,4 +1,4 @@
-import { goldenDocling, goldenPdf, loadGoldens } from "@invex/fixtures";
+import { goldenDocling, goldenPdf, isSynthetic, loadGoldens } from "@invex/fixtures";
 import { describe, expect, it } from "../utils/fixture";
 import { multipartBody } from "../utils/testEnv";
 
@@ -15,7 +15,9 @@ import { multipartBody } from "../utils/testEnv";
  * template engine and solver all run for real over PGlite.
  */
 
-const goldens = loadGoldens();
+// Real-PDF scenarios need a live docling and belong to the smoke harness
+// (pnpm smoke --strict-canonical), not to this in-process lane.
+const goldens = loadGoldens().filter(isSynthetic);
 const invoiceGoldens = goldens.filter((g) => g.expected.canonical !== null);
 
 interface Detail {

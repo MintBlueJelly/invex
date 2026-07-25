@@ -23,6 +23,7 @@
     "dev": "pnpm --filter @invex/server dev",
     "smoke": "pnpm --filter @invex/server smoke",
     "fixtures": "pnpm --filter @invex/fixtures generate",
+    "fixtures:label": "pnpm --filter @invex/fixtures label",
     "db:generate": "pnpm --filter @invex/server db:generate"
   },
   "devDependencies": {

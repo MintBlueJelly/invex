@@ -51,7 +51,15 @@ export interface Golden {
    * re-create exactly the circularity this corpus exists to remove.
    */
   knownBug?: string;
-  render: { doc: LiteralInvoiceDoc };
+  /**
+   * Synthetic scenarios carry a literal page we can render. Scenarios drafted
+   * from a REAL PDF by `pnpm fixtures:label` cannot — the PDF itself is the
+   * source — so they carry `source` instead.
+   */
+  render?: { doc: LiteralInvoiceDoc };
+  source?: { pdfFile: string; documentId?: string; pipelineStatus?: string; note?: string };
+  /** Pipeline output awaiting human correction. Never an expectation. */
+  draftCanonical?: unknown;
   expected: {
     /** null for documents that are not invoices. */
     canonical: CanonicalInvoice | null;
@@ -75,7 +83,15 @@ export function loadGolden(id: string): Golden {
   return found;
 }
 
+/** Synthetic goldens only — a real-PDF scenario has no literal page to lay out. */
+export function isSynthetic(g: Golden): g is Golden & { render: { doc: LiteralInvoiceDoc } } {
+  return g.render?.doc !== undefined;
+}
+
 export function layoutOf(g: Golden): PageLayout[] {
+  if (!isSynthetic(g)) {
+    throw new Error(`golden ${g.id} was drafted from a real PDF (${g.source?.pdfFile}) and cannot be laid out`);
+  }
   return layoutInvoice(g.render.doc, g.layout ?? {});
 }
 
