@@ -48,8 +48,13 @@ const ports: StagePorts = {
   vlm,
 };
 
-const app = buildApp({ db, config, log: log.child({ component: "http" }) });
 const machine = createMachine(ports, buildRegistry());
+const app = buildApp({
+  db,
+  config,
+  log: log.child({ component: "http" }),
+  worker: () => machine.health(),
+});
 
 await app.listen({ port: config.port, host: "0.0.0.0" });
 machine.start();
@@ -62,5 +67,17 @@ async function shutdown(signal: string): Promise<void> {
   await sql.end();
   process.exit(0);
 }
+process.on("uncaughtException", (err) => {
+  // The claim transaction rolls back without incrementing attempts, so the same
+  // document is re-claimed first on the next boot and blocks everything behind
+  // it. At minimum the crash must be attributable (INVEX-007).
+  log.fatal({ err }, "uncaught exception — exiting");
+  process.exit(1);
+});
+process.on("unhandledRejection", (reason) => {
+  log.fatal({ reason }, "unhandled rejection — exiting");
+  process.exit(1);
+});
+
 process.on("SIGINT", () => void shutdown("SIGINT"));
 process.on("SIGTERM", () => void shutdown("SIGTERM"));

@@ -19,6 +19,12 @@ export interface StagePorts {
   log: Logger;
   docling: DoclingPort;
   vlm: VlmPort;
+  /**
+   * Injectable delay, defaulting to setTimeout. The retry SCHEDULE is otherwise
+   * unobservable — it lives inside a bare timer closed over by the loop — and a
+   * backoff nobody can assert on is a backoff that silently regresses.
+   */
+  sleep?: (ms: number) => Promise<void>;
 }
 
 export type StageHandler = (tx: Tx, doc: DocumentRow, ports: StagePorts) => Promise<void>;
@@ -30,6 +36,23 @@ export interface StageRegistry {
   lanes: Partial<Record<LaneRoute, StageHandler>>;
 }
 
+/**
+ * What /health needs to answer "is the worker alive?".
+ *
+ * The probe could not answer it before, so `{"status":"ok"}` was fully
+ * compatible with a server that ingests documents and never processes one —
+ * the exact failure DEPLOYMENT.md lists first in its troubleshooting table and
+ * describes as structurally undetectable (INVEX-009).
+ */
+export interface MachineHealth {
+  /** The poll loop is active. */
+  running: boolean;
+  /** Epoch ms of the last completed tick. Refreshes every poll while idle. */
+  lastTickAt: number | null;
+  /** Epoch ms the in-flight tick started, or null when idle. */
+  inFlightSince: number | null;
+}
+
 export interface Machine {
   start(): void;
   stop(): Promise<void>;
@@ -37,6 +60,7 @@ export interface Machine {
   tick(): Promise<boolean>;
   /** Test helper: keep ticking until the pipeline is quiescent. */
   drain(maxTicks?: number): Promise<number>;
+  health(): MachineHealth;
 }
 
 export function createMachine(ports: StagePorts, registry: StageRegistry): Machine {
@@ -45,30 +69,55 @@ export function createMachine(ports: StagePorts, registry: StageRegistry): Machi
   const handledLanes = Object.keys(registry.lanes);
   if (handledLanes.length > 0) handledStatuses.push("routed");
   const condition = claimCondition(handledStatuses, handledLanes, maxAttempts);
+  const sleep = ports.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+
+  let lastTickAt: number | null = null;
+  let inFlightSince: number | null = null;
+
+  /**
+   * "idle"      — nothing claimable.
+   * "processed" — a document was claimed and advanced.
+   * "errored"   — a document was claimed and its stage threw.
+   *
+   * The distinction exists because the loop must back off after an error while
+   * drain() must still treat it as work to continue past.
+   */
+  type TickOutcome = "idle" | "processed" | "errored";
+
+  async function runTick(): Promise<TickOutcome> {
+    inFlightSince = Date.now();
+    try {
+      let claimedId: string | null = null;
+      try {
+        const claimed = await claimNext(ports.db, condition, async (tx: Tx, doc: DocumentRow) => {
+          claimedId = doc.id;
+          const handler =
+            doc.status === "routed"
+              ? registry.lanes[doc.route as LaneRoute]
+              : registry.statuses[doc.status as Exclude<DocumentStatus, "routed">];
+          if (!handler) {
+            throw new Error(`no handler for status=${doc.status} route=${doc.route}`);
+          }
+          ports.log.debug({ documentId: doc.id, status: doc.status, route: doc.route }, "stage start");
+          await handler(tx, doc, ports);
+        });
+        return claimed ? "processed" : "idle";
+      } catch (err) {
+        if (claimedId !== null) {
+          ports.log.error({ documentId: claimedId, err }, "stage failed");
+          await recordStageError(ports.db, claimedId, err, maxAttempts);
+          return "errored";
+        }
+        throw err; // the claim itself failed (e.g. DB down) — let the loop back off
+      }
+    } finally {
+      inFlightSince = null;
+      lastTickAt = Date.now();
+    }
+  }
 
   async function tick(): Promise<boolean> {
-    let claimedId: string | null = null;
-    try {
-      return await claimNext(ports.db, condition, async (tx: Tx, doc: DocumentRow) => {
-        claimedId = doc.id;
-        const handler =
-          doc.status === "routed"
-            ? registry.lanes[doc.route as LaneRoute]
-            : registry.statuses[doc.status as Exclude<DocumentStatus, "routed">];
-        if (!handler) {
-          throw new Error(`no handler for status=${doc.status} route=${doc.route}`);
-        }
-        ports.log.debug({ documentId: doc.id, status: doc.status, route: doc.route }, "stage start");
-        await handler(tx, doc, ports);
-      });
-    } catch (err) {
-      if (claimedId !== null) {
-        ports.log.error({ documentId: claimedId, err }, "stage failed");
-        await recordStageError(ports.db, claimedId, err, maxAttempts);
-        return true; // counted as processed — attempts moved forward
-      }
-      throw err; // the claim itself failed (e.g. DB down) — let the loop back off
-    }
+    return (await runTick()) !== "idle";
   }
 
   let running = false;
@@ -79,14 +128,20 @@ export function createMachine(ports: StagePorts, registry: StageRegistry): Machi
     running = true;
     loopDone = (async () => {
       while (running) {
-        let processed = false;
+        let outcome: TickOutcome = "idle";
         try {
-          processed = await tick();
+          outcome = await runTick();
         } catch (err) {
           ports.log.error({ err }, "pipeline tick failed");
         }
-        if (!processed) {
-          await new Promise((r) => setTimeout(r, ports.config.pipeline.worker.pollIntervalMs));
+        // Sleep after an error as well as when idle. Skipping the sleep meant
+        // the next tick re-claimed the SAME document immediately — claims are
+        // ordered oldest-first and it is still under maxAttempts — so all three
+        // attempts burned within a few hundred milliseconds. One docling restart
+        // or one llama-swap 503 during a cold model load, both routine, would
+        // permanently fail every in-flight document (INVEX-007).
+        if (outcome !== "processed") {
+          await sleep(ports.config.pipeline.worker.pollIntervalMs);
         }
       }
     })();
@@ -103,5 +158,9 @@ export function createMachine(ports: StagePorts, registry: StageRegistry): Machi
     return n;
   }
 
-  return { start, stop, tick, drain };
+  function health(): MachineHealth {
+    return { running, lastTickAt, inFlightSince };
+  }
+
+  return { start, stop, tick, drain, health };
 }
