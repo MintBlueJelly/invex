@@ -1,5 +1,5 @@
 import type { CanonicalInvoice } from "../schema/invoice";
-import { renderAmount, type DecimalSeparator } from "../parsing/amounts";
+import { parseAmount, renderAmount, type DecimalSeparator } from "../parsing/amounts";
 import { renderIsoDate } from "../parsing/dates";
 import {
   normalizeLabel,
@@ -54,12 +54,26 @@ function findValue(doc: PositionedTextDocument, variants: string[]): ValueHit | 
   return null;
 }
 
+/**
+ * How a value may appear on the page in a given locale: grouped and ungrouped.
+ *
+ * The canonical dot-decimal form is deliberately NOT a member. It is not a
+ * locale rendering, it is already identical to the ungrouped "." rendering, and
+ * including it in BOTH candidate sets made the "," branch match every
+ * dot-decimal page — so detectLocale could never return "." (INVEX-001).
+ */
 function amountVariants(dotDecimal: string, decimal: DecimalSeparator): string[] {
-  return [
-    renderAmount(dotDecimal, decimal, true),
-    renderAmount(dotDecimal, decimal, false),
-    dotDecimal,
-  ];
+  return [renderAmount(dotDecimal, decimal, true), renderAmount(dotDecimal, decimal, false)];
+}
+
+/**
+ * Renderings only `decimal` can produce. "1000" ungrouped is identical in both
+ * locales and is therefore no evidence at all; "1.000" and "1,000" are.
+ */
+function distinctiveVariants(dotDecimal: string, decimal: DecimalSeparator): string[] {
+  const other: DecimalSeparator = decimal === "," ? "." : ",";
+  const otherSet = new Set(amountVariants(dotDecimal, other));
+  return amountVariants(dotDecimal, decimal).filter((v) => !otherSet.has(v));
 }
 
 /** Digit runs → \d+, everything else escaped: "R-2026-0042" → "R-\d+-\d+". */
@@ -93,10 +107,29 @@ function detectLocale(invoice: CanonicalInvoice, doc: PositionedTextDocument): {
   decimal: DecimalSeparator;
   dateFormats: string[];
 } {
+  // Probe several amounts, not just the gross: a value with no fractional part
+  // renders identically in both locales, so the first probe is often no
+  // evidence. Only a rendering the other locale cannot produce may decide it.
   let decimal: DecimalSeparator = ",";
-  const gross = invoice.totals.gross;
-  if (findValue(doc, amountVariants(gross, ","))) decimal = ",";
-  else if (findValue(doc, amountVariants(gross, "."))) decimal = ".";
+  const probes = [
+    invoice.totals.gross,
+    invoice.totals.net,
+    invoice.totals.tax,
+    ...invoice.vatBreakdown.flatMap((v) => [v.net, v.tax]),
+    ...invoice.lineItems.flatMap((l) => [l.lineTotal, l.unitPrice]),
+  ];
+  for (const value of probes) {
+    if (!value) continue;
+    const de = distinctiveVariants(value, ",");
+    const en = distinctiveVariants(value, ".");
+    const hitDe = de.length > 0 && findValue(doc, de) !== null;
+    const hitEn = en.length > 0 && findValue(doc, en) !== null;
+    // Ambiguous (both or neither) proves nothing — keep looking.
+    if (hitDe !== hitEn) {
+      decimal = hitDe ? "," : ".";
+      break;
+    }
+  }
 
   const dateFormats: string[] = [];
   for (const fmt of DATE_FORMAT_CANDIDATES) {
@@ -138,7 +171,14 @@ function induceHeaderFields(
 
   const amountField = (key: TemplateFieldKey, value: string) => {
     const hit = findValue(doc, amountVariants(value, locale.decimal));
-    if (hit) fields[key] = descriptorFor(hit, doc, AMOUNT_PATTERN);
+    if (!hit) return;
+    // Round-trip guard: the anchored text must parse back to the value under the
+    // separator we are about to persist. Without this, a mis-detected locale
+    // writes an anchor that silently multiplies this vendor's amounts by 100 on
+    // every future invoice — and if the VAT arithmetic happens to be exact, the
+    // scaled result still satisfies every constraint, so nothing escalates.
+    if (parseAmount(hit.matched, locale.decimal) !== value) return;
+    fields[key] = descriptorFor(hit, doc, AMOUNT_PATTERN);
   };
   amountField("totals.gross", invoice.totals.gross);
   amountField("totals.net", invoice.totals.net);
