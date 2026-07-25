@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import {
+  reconcile,
   zCanonicalInvoice,
   type PositionedTextDocument,
 } from "@invex/core";
@@ -20,6 +21,13 @@ import { induceAndPersistTemplate } from "../pipeline/templateFeedback";
  * original diagram was missing. UI priority later: line-item corrections
  * convert one-off extractions into durable templates.
  */
+/**
+ * Constraints that mean "these numbers contradict each other". Deliberately
+ * excludes C5_VAT_CLOSED_SET, which is a DE-specific plausibility heuristic
+ * rather than arithmetic — see the comment at the gate below.
+ */
+const ARITHMETIC_CONSTRAINTS = new Set(["C1_TOTALS", "C2_LINE_SUM", "C3_LINE_MATH", "C4_VAT_SUM"]);
+
 export function registerReviewRoutes(app: FastifyInstance, db: Db): void {
   app.get("/api/review", async () => {
     const rows = await listDocuments(db, { status: "pending_review", limit: 100 });
@@ -65,6 +73,29 @@ export function registerReviewRoutes(app: FastifyInstance, db: Db): void {
       });
     }
     const invoice = parsed.data;
+
+    // §4: the constraint system is the acceptance test for EVERY path, and human
+    // review is a path. Schema validity only proves "1000.00" is money-shaped —
+    // it says nothing about net + tax = gross. Without this the reviewer's typo
+    // was committed AND induced into a vendor template, so one mistake anchored
+    // wrong values for every future invoice from that vendor (INVEX-004).
+    //
+    // Only genuine contradictions block. C5 (rate in the German closed set) is a
+    // plausibility heuristic: a reviewer looking at an Austrian 20% invoice is
+    // the authority and must be able to say so. They may assert an unusual rate;
+    // they may not assert that the totals disagree with each other.
+    const check = reconcile({ invoice, fieldMeta: {} });
+    const contradictions = check.violations.filter((v) => ARITHMETIC_CONSTRAINTS.has(v.constraint));
+    if (contradictions.length > 0) {
+      return reply.code(422).send({
+        error: "corrected invoice does not reconcile",
+        violations: contradictions.map((v) => ({
+          constraint: v.constraint,
+          paths: v.paths,
+          detail: v.detail,
+        })),
+      });
+    }
 
     let templateId: string | null = null;
     await db.transaction(async (tx) => {
