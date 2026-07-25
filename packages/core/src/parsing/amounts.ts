@@ -31,10 +31,39 @@ export function detectDecimalSeparator(text: string): DecimalSeparator | null {
 }
 
 /**
+ * Does this text hold more than one amount?
+ *
+ * Two adjacent table cells merged by a layout error arrive here as
+ * "199,50 399,00". stripNoise() removes the space, fusing them into
+ * 19950399.00 — schema-valid, arithmetically unremarkable, and unrecognisable
+ * as wrong by any downstream constraint (INVEX-003). Declining is strictly
+ * better: a null is a missing field, which the solver reports.
+ *
+ * Space-grouped numbers stay valid. In "1 234 567,89" every group after the
+ * first is exactly three digits and only the last carries a fraction; anything
+ * else is two values that happen to be adjacent. Parts without digits are
+ * trailing prose and are ignored.
+ */
+function holdsMultipleAmounts(text: string): boolean {
+  const parts = text
+    .replace(/(EUR|€|USD|\$|GBP|£|CHF)/gi, "")
+    .replace(/^\s*([-+])\s*/, "$1") // a sign detached from its digits
+    .trim()
+    .split(/\s+/)
+    .filter((p) => /\d/.test(p));
+  if (parts.length < 2) return false;
+  return parts.some((p, i) => {
+    if (i === 0) return !/^[-+]?\d{1,3}$/.test(p);
+    return i === parts.length - 1 ? !/^\d{3}([.,]\d{1,4})?$/.test(p) : !/^\d{3}$/.test(p);
+  });
+}
+
+/**
  * Parse a rendered amount to a dot-decimal string. `decimal` pins the locale
  * (from a vendor template); otherwise it is auto-detected per value.
  */
 export function parseAmount(text: string, decimal?: DecimalSeparator): string | null {
+  if (holdsMultipleAmounts(text)) return null;
   let s = stripNoise(text);
   if (s === "" || /^[-+]$/.test(s)) return null;
   const negative = s.startsWith("-");
