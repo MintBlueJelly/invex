@@ -87,16 +87,19 @@ export default defineConfig({
       ],
       reporter: ["text-summary", "json-summary", "lcov"],
       reportsDirectory: "./coverage",
-      // Ratcheted one phase at a time from the MEASURED baseline (Phase 0:
-      // 89.03/85.95/90.30/70.83), rounded down for noise. Never set aspirational
-      // values here — a permanently red gate teaches everyone to ignore it.
-      // Raise at each phase boundary; never lower.
+      // Ratcheted one phase at a time from the MEASURED value, rounded down for
+      // noise. Never set aspirational numbers here — a permanently red gate
+      // teaches everyone to ignore it. Raise at each phase boundary; never lower.
       //
-      // Read these numbers carefully: high LINE coverage here does not mean the
-      // code is verified. The integration tests execute most of the pipeline but
-      // assert on very little of it, which is exactly how ~20 defects survive at
-      // 89% line coverage. Branch coverage (70%) is the more honest signal.
-      thresholds: { lines: 88, statements: 85, functions: 89, branches: 70 },
+      //   Phase 0  89.03 / 85.95 / 90.30 / 70.83   (lines/stmts/funcs/branches)
+      //   Phase F  91.15 / 88.13 / 92.40 / 74.35
+      //
+      // Read these numbers carefully: high LINE coverage does not mean the code
+      // is verified. The pre-existing integration tests executed most of the
+      // pipeline while asserting on very little of it — which is exactly how
+      // eleven defects survived at 89% line coverage. Branch coverage is the
+      // more honest signal, and it is the one that moved most.
+      thresholds: { lines: 91, statements: 88, functions: 92, branches: 74 },
     },
   },
 });
