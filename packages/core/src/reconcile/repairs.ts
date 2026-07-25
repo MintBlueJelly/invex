@@ -98,6 +98,28 @@ function vatSynth(w: Working, ctx: RepairContext): boolean {
     }
   });
 
+  // A rate-0 entry cannot be completed from its own tax — net x 0% = 0 holds for
+  // ANY net, so the relation is underdetermined and the loop above skips it.
+  // Apportion from the header instead: if exactly one entry still lacks a net,
+  // it is whatever the others do not account for.
+  //
+  // Without this every §19 Kleinunternehmer and §13b reverse-charge invoice
+  // escalated, because runRuleEngine emits {rate, tax, net: null} and those
+  // documents are precisely the ones whose only rate is 0 (INVEX-010).
+  if (w.net !== null) {
+    const missing = w.vat.filter((v) => v.net === null);
+    if (missing.length === 1) {
+      const accounted = w.vat.reduce(
+        (sum, v) => (v.net === null ? sum : sum.plus(v.net)),
+        new Decimal(0),
+      );
+      const entry = missing[0]!;
+      entry.net = w.net.minus(accounted);
+      record(ctx, "R_VAT_SYNTH", `vatBreakdown.${w.vat.indexOf(entry)}.net`, moneyStr(entry.net));
+      fired = true;
+    }
+  }
+
   return fired;
 }
 
