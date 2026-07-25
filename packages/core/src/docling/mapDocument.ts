@@ -64,9 +64,43 @@ interface DoclingDocumentJson {
   pages?: Record<string, DoclingPage>;
 }
 
+/**
+ * Assumed page dimensions in PDF points when docling does not report a size.
+ *
+ * A default of 1 is never right: docling bboxes are in points, so dividing by 1
+ * and clamping to [0,1] turned EVERY bbox in the document into [1,1,1,1]. All
+ * downstream logic is positional — region anchors, the classifier's
+ * heading-in-the-top-quarter feature, the segmenter, the OCR x-bands — so they
+ * silently operated on degenerate coordinates (INVEX-005).
+ *
+ * A4 is the right guess for this document population, and normBboxOrThrow
+ * refuses the guess when the observed geometry contradicts it.
+ */
+const FALLBACK_PAGE = { width: 595.276, height: 841.89 };
+
+/** Slack for bboxes that legitimately sit a hair outside the media box. */
+const FIT_TOLERANCE_PT = 2;
+
 function normBbox(bbox: DoclingBbox, page: DoclingPage | undefined): Bbox {
-  const W = page?.size?.width ?? 1;
-  const H = page?.size?.height ?? 1;
+  const declared = page?.size;
+  if (declared?.width === undefined || declared.height === undefined) {
+    // Only accept the fallback if the coordinates actually fit inside it. An A3
+    // page, a landscape scan, or a docling schema change would all produce
+    // out-of-range values, and quietly rescaling those yields
+    // plausible-looking nonsense. Throwing surfaces it as a stage error, which
+    // escalates the document instead of mis-extracting it.
+    const overflowsWidth = Math.max(bbox.l, bbox.r) > FALLBACK_PAGE.width + FIT_TOLERANCE_PT;
+    const overflowsHeight = Math.max(bbox.t, bbox.b) > FALLBACK_PAGE.height + FIT_TOLERANCE_PT;
+    if (overflowsWidth || overflowsHeight) {
+      throw new Error(
+        `docling response omits the page size and its geometry does not fit the assumed A4 ` +
+          `fallback (bbox l=${bbox.l} t=${bbox.t} r=${bbox.r} b=${bbox.b}); ` +
+          `refusing to guess the page scale`,
+      );
+    }
+  }
+  const W = declared?.width ?? FALLBACK_PAGE.width;
+  const H = declared?.height ?? FALLBACK_PAGE.height;
   const x0 = bbox.l / W;
   const x1 = bbox.r / W;
   let y0: number;
