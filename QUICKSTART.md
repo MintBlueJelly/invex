@@ -125,4 +125,5 @@ path — any OpenAI-compatible endpoint serving a vision-capable model. The visi
 | [README.md](./README.md) | Engineers — architecture, packages, how to build and test it |
 | [API.md](./API.md) | Anyone integrating with it — every endpoint, the invoice schema, the sharp edges |
 | [DEPLOYMENT.md](./DEPLOYMENT.md) | Operators — a real Kubernetes deployment, what holds state, what breaks |
+| [GLOSSARY.md](./GLOSSARY.md) | Anyone — every term used across these documents, and the words that mean something specific here |
 | [invex-briefing.md](./invex-briefing.md) | The original design brief and the reasoning behind it |

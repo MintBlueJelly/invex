@@ -17,6 +17,7 @@ and 70.8 % to 83.9 % branches. CI now runs it and gates the image build.
 | Backlog, machine-checked | [docs/known-bugs.md](./docs/known-bugs.md) |
 | What is still broken, right now | `pnpm test:known-bugs` (expected to be red — that is the report) |
 | Orientation for a non-engineer | [QUICKSTART.md](./QUICKSTART.md) |
+| Any term below you would struggle to explain | [GLOSSARY.md](./GLOSSARY.md) |
 
 ---
 

@@ -2,7 +2,7 @@
 
 Every row here is pinned by at least one test using the `knownBug()` helper
 (`test-utils/knownBug.ts`), and every id used by a test appears here. Both directions are
-enforced by `packages/core/test/unit/knownBugs.registry.test.ts`, so this file cannot drift
+enforced by `packages/server/test/unit/knownBugs.registry.test.ts`, so this file cannot drift
 away from the suite: removing the last test for an id forces removing its row, and adding a
 row forces adding a test.
 

@@ -20,7 +20,7 @@ declare const process: { env: Record<string, string | undefined> };
  *      actually does today, so a refactor to a THIRD wrong behaviour is caught
  *      even though the pin still "passes";
  *   3. every id must appear in docs/known-bugs.md — enforced by
- *      packages/core/test/unit/knownBugs.registry.test.ts.
+ *      packages/server/test/unit/knownBugs.registry.test.ts.
  *
  * INVEX_KNOWN_BUGS=strict flips these to ordinary tests, so `pnpm test:known-bugs`
  * reports what is still broken. That run is EXPECTED to be red; it is the backlog.

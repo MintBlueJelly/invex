@@ -90,6 +90,20 @@ Drop real PDFs into `fixtures-drop/` and run `pnpm smoke -- ./fixtures-drop` (se
 invoice **and** template feedback) · `GET /api/templates[/:id]` · `GET /api/escalations` ·
 `GET /health`
 
+Full reference — every endpoint with request/response shapes, the canonical invoice schema, all
+enums and the behavioral sharp edges: **[API.md](./API.md)**.
+
+Unfamiliar term? **[GLOSSARY.md](./GLOSSARY.md)** covers the domain, pipeline, AI and testing
+vocabulary — and the words that mean something specific in this codebase (`lane`, `band`, `fixture`,
+`reconciliation`).
+
+## Deployment
+
+Running InvEx needs Postgres, a docling-serve instance and — for the VLM path — an OpenAI-compatible
+endpoint. **[DEPLOYMENT.md](./DEPLOYMENT.md)** documents a real Kubernetes deployment end to end:
+topology, the timeout relationships between the hops, GPU model residency, what holds state, and a
+troubleshooting playbook.
+
 ## Config
 
 - `config/pipeline.json` — tolerances, VAT closed set, text-gate thresholds, triage, VLM/worker knobs
@@ -101,9 +115,11 @@ invoice **and** template feedback) · `GET /api/templates[/:id]` · `GET /api/es
 ## Known open items
 
 - **Classifier band calibration** needs a labeled sample of the real document mix (briefing §11).
-- **VLM model/hosting undecided** (§11): the OpenAI-compatible client + stub are in place; real-model E2E pending.
+- **VLM model/hosting** is settled for the reference deployment (a vision-capable model behind
+  LiteLLM — see [DEPLOYMENT.md](./DEPLOYMENT.md)); broader real-model evaluation is still open.
 - **Docling response pinning**: the DoclingDocument mapper is tested against hand-authored
-  fixtures; capture a live docling-serve response on a Docker-capable machine and commit it
-  (swap into `packages/server/test/utils/doclingFixtures.ts`).
-- Docker artifacts (compose `app` profile, `packages/server/Dockerfile`) are authored but
-  untested on this machine (no Docker) — verify on a Docker host.
+  fixtures; capture a live docling-serve response and commit it
+  (swap into `packages/server/test/utils/doclingFixtures.ts`). Note the compose file pins an older
+  docling-serve than the reference deployment runs — bump both together.
+- The compose `app` profile is still unverified; `packages/server/Dockerfile` builds in CI and the
+  resulting image runs in the reference deployment.
