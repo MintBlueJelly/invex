@@ -1,0 +1,131 @@
+{
+  "id": "de-omitted-quantity-unitprice",
+  "title": "Line totals only: no Menge and no Einzelpreis column at all",
+  "reviewed": true,
+  "authoredOn": "2026-07-25",
+  "render": {
+    "doc": {
+      "locale": "de",
+      "seller": {
+        "nameText": "Nordlicht Ingenieure GmbH",
+        "addressLines": [
+          "Hafenstraße 88",
+          "24103 Kiel"
+        ],
+        "taxIdLine": "USt-IdNr.: DE811907980"
+      },
+      "buyerLines": [
+        "Beispiel AG"
+      ],
+      "headingText": "Rechnung",
+      "headerFields": [
+        {
+          "labelText": "Rechnungs-Nr.",
+          "valueText": "NI-2026-77"
+        },
+        {
+          "labelText": "Rechnungsdatum",
+          "valueText": "20.03.2026"
+        }
+      ],
+      "tableHeaders": [
+        "Pos",
+        "Bezeichnung",
+        "Gesamt"
+      ],
+      "lines": [
+        {
+          "posText": "1",
+          "descriptionText": "Projektpauschale Phase 1",
+          "lineTotalText": "2.500,00"
+        },
+        {
+          "posText": "2",
+          "descriptionText": "Reisekosten",
+          "lineTotalText": "340,00"
+        }
+      ],
+      "totalsBlock": [
+        {
+          "labelText": "Zwischensumme",
+          "valueText": "2.840,00"
+        },
+        {
+          "labelText": "MwSt. 19 %",
+          "valueText": "539,60"
+        },
+        {
+          "labelText": "Gesamtbetrag",
+          "valueText": "3.379,60",
+          "bold": true
+        }
+      ],
+      "tableColumns": [
+        "position",
+        "description",
+        "lineTotal"
+      ]
+    }
+  },
+  "expected": {
+    "canonical": {
+      "schemaVersion": 1,
+      "invoiceNumber": "NI-2026-77",
+      "issueDate": "2026-03-20",
+      "dueDate": null,
+      "currency": "EUR",
+      "locale": null,
+      "seller": {
+        "name": "Nordlicht Ingenieure GmbH",
+        "ustIdNr": "DE811907980",
+        "steuernummer": null,
+        "ibans": [],
+        "address": {
+          "street": "Hafenstraße 88",
+          "postalCode": "24103",
+          "city": "Kiel",
+          "countryCode": null
+        }
+      },
+      "buyer": null,
+      "totals": {
+        "net": "2840.00",
+        "tax": "539.60",
+        "gross": "3379.60"
+      },
+      "vatBreakdown": [
+        {
+          "rate": 19,
+          "net": "2840.00",
+          "tax": "539.60"
+        }
+      ],
+      "lineItems": [
+        {
+          "position": 1,
+          "description": "Projektpauschale Phase 1",
+          "quantity": null,
+          "unit": null,
+          "unitPrice": null,
+          "taxRate": 19,
+          "lineTotal": "2500.00"
+        },
+        {
+          "position": 2,
+          "description": "Reisekosten",
+          "quantity": null,
+          "unit": null,
+          "unitPrice": null,
+          "taxRate": 19,
+          "lineTotal": "340.00"
+        }
+      ],
+      "paymentTerms": null
+    },
+    "smoke": {
+      "route": "text",
+      "terminalStatus": "committed"
+    }
+  },
+  "knownBug": "INVEX-047"
+}

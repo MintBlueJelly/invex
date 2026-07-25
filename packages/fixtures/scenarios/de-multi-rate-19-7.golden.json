@@ -1,0 +1,150 @@
+{
+  "id": "de-multi-rate-19-7",
+  "title": "Two VAT rates on one invoice (7% books, 19% supplies) with per-line rates printed",
+  "reviewed": true,
+  "authoredOn": "2026-07-25",
+  "render": {
+    "doc": {
+      "locale": "de",
+      "seller": {
+        "nameText": "Kontor Fachverlag GmbH",
+        "addressLines": [
+          "Buchweg 7",
+          "20095 Hamburg"
+        ],
+        "taxIdLine": "USt-IdNr.: DE136695976"
+      },
+      "buyerLines": [
+        "Beispiel AG"
+      ],
+      "headingText": "Rechnung",
+      "headerFields": [
+        {
+          "labelText": "Rechnungs-Nr.",
+          "valueText": "K-2026-118"
+        },
+        {
+          "labelText": "Rechnungsdatum",
+          "valueText": "02.05.2026"
+        }
+      ],
+      "tableHeaders": [
+        "Pos",
+        "Bezeichnung",
+        "Menge",
+        "Einzelpreis",
+        "Gesamt"
+      ],
+      "lines": [
+        {
+          "posText": "1",
+          "descriptionText": "Fachbuch Bilanzrecht 2026",
+          "quantityText": "2",
+          "unitPriceText": "39,00",
+          "lineTotalText": "78,00"
+        },
+        {
+          "posText": "2",
+          "descriptionText": "Büromaterial Sortiment",
+          "quantityText": "1",
+          "unitPriceText": "122,00",
+          "lineTotalText": "122,00"
+        }
+      ],
+      "totalsBlock": [
+        {
+          "labelText": "Zwischensumme",
+          "valueText": "200,00"
+        },
+        {
+          "labelText": "MwSt. 7 %",
+          "valueText": "5,46"
+        },
+        {
+          "labelText": "MwSt. 19 %",
+          "valueText": "23,18"
+        },
+        {
+          "labelText": "Gesamtbetrag",
+          "valueText": "228,64",
+          "bold": true
+        }
+      ],
+      "tableColumns": [
+        "position",
+        "description",
+        "quantity",
+        "unitPrice",
+        "lineTotal"
+      ]
+    }
+  },
+  "expected": {
+    "canonical": {
+      "schemaVersion": 1,
+      "invoiceNumber": "K-2026-118",
+      "issueDate": "2026-05-02",
+      "dueDate": null,
+      "currency": "EUR",
+      "locale": null,
+      "seller": {
+        "name": "Kontor Fachverlag GmbH",
+        "ustIdNr": "DE136695976",
+        "steuernummer": null,
+        "ibans": [],
+        "address": {
+          "street": "Buchweg 7",
+          "postalCode": "20095",
+          "city": "Hamburg",
+          "countryCode": null
+        }
+      },
+      "buyer": null,
+      "totals": {
+        "net": "200.00",
+        "tax": "28.64",
+        "gross": "228.64"
+      },
+      "vatBreakdown": [
+        {
+          "rate": 19,
+          "net": "122.00",
+          "tax": "23.18"
+        },
+        {
+          "rate": 7,
+          "net": "78.00",
+          "tax": "5.46"
+        }
+      ],
+      "lineItems": [
+        {
+          "position": 1,
+          "description": "Fachbuch Bilanzrecht 2026",
+          "quantity": "2",
+          "unit": null,
+          "unitPrice": "39.00",
+          "taxRate": 7,
+          "lineTotal": "78.00"
+        },
+        {
+          "position": 2,
+          "description": "Büromaterial Sortiment",
+          "quantity": "1",
+          "unit": null,
+          "unitPrice": "122.00",
+          "taxRate": 19,
+          "lineTotal": "122.00"
+        }
+      ],
+      "paymentTerms": null
+    },
+    "smoke": {
+      "route": "text",
+      "hasEvents": [
+        "classified",
+        "reconciled"
+      ]
+    }
+  }
+}

@@ -1,0 +1,171 @@
+{
+  "id": "de-right-aligned-overhang",
+  "title": "Amounts overhanging their column headers — the INVEX-002 OCR band case",
+  "reviewed": true,
+  "authoredOn": "2026-07-25",
+  "render": {
+    "doc": {
+      "locale": "de",
+      "seller": {
+        "nameText": "ACME Bürotechnik GmbH",
+        "addressLines": [
+          "Industriestraße 12",
+          "80331 München"
+        ],
+        "taxIdLine": "USt-IdNr.: DE811907980",
+        "bankLines": [
+          "Bankverbindung: IBAN DE02120300000000202051"
+        ]
+      },
+      "buyerLines": [
+        "Beispiel AG",
+        "Musterweg 3",
+        "10115 Berlin"
+      ],
+      "headingText": "Rechnung",
+      "headerFields": [
+        {
+          "labelText": "Rechnungs-Nr.",
+          "valueText": "R-2026-0042"
+        },
+        {
+          "labelText": "Rechnungsdatum",
+          "valueText": "15.06.2026"
+        },
+        {
+          "labelText": "Fällig am",
+          "valueText": "15.07.2026"
+        }
+      ],
+      "tableHeaders": [
+        "Pos",
+        "Bezeichnung",
+        "Menge",
+        "Einzelpreis",
+        "Gesamt"
+      ],
+      "lines": [
+        {
+          "posText": "1",
+          "descriptionText": "Aktenvernichter PS-500",
+          "quantityText": "2",
+          "unitPriceText": "199,50",
+          "lineTotalText": "399,00"
+        },
+        {
+          "posText": "2",
+          "descriptionText": "Wartungsvertrag Bürogeräte, Laufzeit 12",
+          "continuationText": "Monate",
+          "quantityText": "1",
+          "unitPriceText": "480,00",
+          "lineTotalText": "480,00"
+        },
+        {
+          "posText": "3",
+          "descriptionText": "Toner-Set CMYK",
+          "quantityText": "3",
+          "unitPriceText": "89,90",
+          "lineTotalText": "269,70"
+        }
+      ],
+      "totalsBlock": [
+        {
+          "labelText": "Zwischensumme",
+          "valueText": "1.148,70"
+        },
+        {
+          "labelText": "MwSt. 19 %",
+          "valueText": "218,25"
+        },
+        {
+          "labelText": "Gesamtbetrag",
+          "valueText": "1.366,95",
+          "bold": true
+        }
+      ],
+      "footerLines": [
+        "Zahlbar innerhalb von 30 Tagen ohne Abzug."
+      ],
+      "tableColumns": [
+        "position",
+        "description",
+        "quantity",
+        "unitPrice",
+        "lineTotal"
+      ]
+    }
+  },
+  "expected": {
+    "canonical": {
+      "schemaVersion": 1,
+      "invoiceNumber": "R-2026-0042",
+      "issueDate": "2026-06-15",
+      "dueDate": "2026-07-15",
+      "currency": "EUR",
+      "locale": null,
+      "seller": {
+        "name": "ACME Bürotechnik GmbH",
+        "ustIdNr": "DE811907980",
+        "steuernummer": null,
+        "ibans": [
+          "DE02120300000000202051"
+        ],
+        "address": {
+          "street": "Industriestraße 12",
+          "postalCode": "80331",
+          "city": "München",
+          "countryCode": null
+        }
+      },
+      "buyer": null,
+      "totals": {
+        "net": "1148.70",
+        "tax": "218.25",
+        "gross": "1366.95"
+      },
+      "vatBreakdown": [
+        {
+          "rate": 19,
+          "net": "1148.70",
+          "tax": "218.25"
+        }
+      ],
+      "lineItems": [
+        {
+          "position": 1,
+          "description": "Aktenvernichter PS-500",
+          "quantity": "2",
+          "unit": null,
+          "unitPrice": "199.50",
+          "taxRate": 19,
+          "lineTotal": "399.00"
+        },
+        {
+          "position": 2,
+          "description": "Wartungsvertrag Bürogeräte, Laufzeit 12 Monate",
+          "quantity": "1",
+          "unit": null,
+          "unitPrice": "480.00",
+          "taxRate": 19,
+          "lineTotal": "480.00"
+        },
+        {
+          "position": 3,
+          "description": "Toner-Set CMYK",
+          "quantity": "3",
+          "unit": null,
+          "unitPrice": "89.90",
+          "taxRate": 19,
+          "lineTotal": "269.70"
+        }
+      ],
+      "paymentTerms": null
+    },
+    "smoke": {
+      "route": "text"
+    }
+  },
+  "layout": {
+    "amountOverhangPt": 14
+  }
+}

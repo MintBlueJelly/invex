@@ -1,0 +1,58 @@
+{
+  "id": "non-invoice-letter",
+  "title": "A covering letter — not an invoice, must export as Markdown",
+  "reviewed": true,
+  "authoredOn": "2026-07-25",
+  "render": {
+    "doc": {
+      "locale": "de",
+      "seller": {
+        "nameText": "ACME Bürotechnik GmbH",
+        "addressLines": [
+          "Industriestraße 12",
+          "80331 München"
+        ]
+      },
+      "buyerLines": [
+        "Beispiel AG",
+        "Musterweg 3",
+        "10115 Berlin"
+      ],
+      "headingText": "Informationen zu Ihrem Wartungsvertrag",
+      "headerFields": [
+        {
+          "labelText": "Datum",
+          "valueText": "15.06.2026"
+        }
+      ],
+      "tableHeaders": [],
+      "lines": [],
+      "totalsBlock": [],
+      "noteLines": [
+        "Sehr geehrte Damen und Herren,",
+        "wir möchten Sie darüber informieren, dass sich die Bedingungen Ihres",
+        "Wartungsvertrages zum kommenden Quartal ändern. Eine gesonderte",
+        "Abrechnung erhalten Sie wie gewohnt zu Beginn des Leistungszeitraums.",
+        "Bei Rückfragen steht Ihnen Ihr Kundenbetreuer jederzeit zur Verfügung.",
+        "Mit freundlichen Grüßen",
+        "Ihr Serviceteam"
+      ],
+      "tableColumns": []
+    }
+  },
+  "expected": {
+    "canonical": null,
+    "smoke": {
+      "route": "text",
+      "terminalStatus": "exported_markdown",
+      "hasEvents": [
+        "classified",
+        "markdown_exported"
+      ],
+      "notEvents": [
+        "committed"
+      ]
+    }
+  },
+  "knownBug": "INVEX-047"
+}

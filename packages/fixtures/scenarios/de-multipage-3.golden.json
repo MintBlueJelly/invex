@@ -1,0 +1,173 @@
+{
+  "id": "de-multipage-3",
+  "title": "Line-item table spanning a page break, with a Seite n von m counter",
+  "reviewed": true,
+  "authoredOn": "2026-07-25",
+  "layout": {
+    "pageBreakAfterLine": 2,
+    "pageCounterFormat": "Seite {n} von {total}"
+  },
+  "render": {
+    "doc": {
+      "locale": "de",
+      "seller": {
+        "nameText": "Rheinsys IT-Service GmbH",
+        "addressLines": [
+          "Domstraße 22",
+          "50667 Köln"
+        ],
+        "taxIdLine": "USt-IdNr.: DE136695976"
+      },
+      "buyerLines": [
+        "Beispiel AG"
+      ],
+      "headingText": "Rechnung",
+      "headerFields": [
+        {
+          "labelText": "Rechnungs-Nr.",
+          "valueText": "RS-2026-0301"
+        },
+        {
+          "labelText": "Rechnungsdatum",
+          "valueText": "31.12.2026"
+        }
+      ],
+      "tableHeaders": [
+        "Pos",
+        "Bezeichnung",
+        "Menge",
+        "Einzelpreis",
+        "Gesamt"
+      ],
+      "lines": [
+        {
+          "posText": "1",
+          "descriptionText": "Serverwartung Q1",
+          "quantityText": "1",
+          "unitPriceText": "1.200,00",
+          "lineTotalText": "1.200,00"
+        },
+        {
+          "posText": "2",
+          "descriptionText": "Serverwartung Q2",
+          "quantityText": "1",
+          "unitPriceText": "1.200,00",
+          "lineTotalText": "1.200,00"
+        },
+        {
+          "posText": "3",
+          "descriptionText": "Serverwartung Q3",
+          "quantityText": "1",
+          "unitPriceText": "1.200,00",
+          "lineTotalText": "1.200,00"
+        },
+        {
+          "posText": "4",
+          "descriptionText": "Serverwartung Q4",
+          "quantityText": "1",
+          "unitPriceText": "1.200,00",
+          "lineTotalText": "1.200,00"
+        }
+      ],
+      "totalsBlock": [
+        {
+          "labelText": "Zwischensumme",
+          "valueText": "4.800,00"
+        },
+        {
+          "labelText": "MwSt. 19 %",
+          "valueText": "912,00"
+        },
+        {
+          "labelText": "Gesamtbetrag",
+          "valueText": "5.712,00",
+          "bold": true
+        }
+      ],
+      "tableColumns": [
+        "position",
+        "description",
+        "quantity",
+        "unitPrice",
+        "lineTotal"
+      ]
+    }
+  },
+  "expected": {
+    "canonical": {
+      "schemaVersion": 1,
+      "invoiceNumber": "RS-2026-0301",
+      "issueDate": "2026-12-31",
+      "dueDate": null,
+      "currency": "EUR",
+      "locale": null,
+      "seller": {
+        "name": "Rheinsys IT-Service GmbH",
+        "ustIdNr": "DE136695976",
+        "steuernummer": null,
+        "ibans": [],
+        "address": {
+          "street": "Domstraße 22",
+          "postalCode": "50667",
+          "city": "Köln",
+          "countryCode": null
+        }
+      },
+      "buyer": null,
+      "totals": {
+        "net": "4800.00",
+        "tax": "912.00",
+        "gross": "5712.00"
+      },
+      "vatBreakdown": [
+        {
+          "rate": 19,
+          "net": "4800.00",
+          "tax": "912.00"
+        }
+      ],
+      "lineItems": [
+        {
+          "position": 1,
+          "description": "Serverwartung Q1",
+          "quantity": "1",
+          "unit": null,
+          "unitPrice": "1200.00",
+          "taxRate": 19,
+          "lineTotal": "1200.00"
+        },
+        {
+          "position": 2,
+          "description": "Serverwartung Q2",
+          "quantity": "1",
+          "unit": null,
+          "unitPrice": "1200.00",
+          "taxRate": 19,
+          "lineTotal": "1200.00"
+        },
+        {
+          "position": 3,
+          "description": "Serverwartung Q3",
+          "quantity": "1",
+          "unit": null,
+          "unitPrice": "1200.00",
+          "taxRate": 19,
+          "lineTotal": "1200.00"
+        },
+        {
+          "position": 4,
+          "description": "Serverwartung Q4",
+          "quantity": "1",
+          "unit": null,
+          "unitPrice": "1200.00",
+          "taxRate": 19,
+          "lineTotal": "1200.00"
+        }
+      ],
+      "paymentTerms": null
+    },
+    "smoke": {
+      "route": "text"
+    }
+  }
+}

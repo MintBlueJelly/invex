@@ -85,29 +85,18 @@ function vatSynth(w: Working, ctx: RepairContext): boolean {
     }
   }
 
-  w.vat.forEach((v, i) => {
-    if (v.rate === null) return;
-    if (v.tax === null && v.net !== null) {
-      v.tax = v.net.times(v.rate).div(100).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
-      record(ctx, "R_VAT_SYNTH", `vatBreakdown.${i}.tax`, moneyStr(v.tax));
-      fired = true;
-    } else if (v.net === null && v.tax !== null && v.rate > 0) {
-      v.net = v.tax.times(100).div(v.rate).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
-      record(ctx, "R_VAT_SYNTH", `vatBreakdown.${i}.net`, moneyStr(v.net));
-      fired = true;
-    }
-  });
-
-  // A rate-0 entry cannot be completed from its own tax — net x 0% = 0 holds for
-  // ANY net, so the relation is underdetermined and the loop above skips it.
-  // Apportion from the header instead: if exactly one entry still lacks a net,
-  // it is whatever the others do not account for.
+  // Apportion from the header FIRST, before falling back to arithmetic on a
+  // rounded tax.
   //
-  // Without this every §19 Kleinunternehmer and §13b reverse-charge invoice
-  // escalated, because runRuleEngine emits {rate, tax, net: null} and those
-  // documents are precisely the ones whose only rate is 0 (INVEX-010).
+  // Two reasons. A rate-0 entry cannot be completed from its own tax at all —
+  // net x 0% = 0 holds for ANY net, so the relation is underdetermined, and
+  // without this every §19 Kleinunternehmer and §13b reverse-charge invoice
+  // escalated (INVEX-010). And even where the tax-based derivation is possible
+  // it is LESS accurate: the printed tax is already rounded, so back-computing
+  // 218.25 x 100/19 yields 1148.68 for an invoice whose header states 1148.70.
+  // The header is the better evidence whenever it is available.
   if (w.net !== null) {
-    const missing = w.vat.filter((v) => v.net === null);
+    const missing = w.vat.filter((v) => v.net === null && v.rate !== null);
     if (missing.length === 1) {
       const accounted = w.vat.reduce(
         (sum, v) => (v.net === null ? sum : sum.plus(v.net)),
@@ -119,6 +108,21 @@ function vatSynth(w: Working, ctx: RepairContext): boolean {
       fired = true;
     }
   }
+
+  w.vat.forEach((v, i) => {
+    if (v.rate === null) return;
+    if (v.tax === null && v.net !== null) {
+      v.tax = v.net.times(v.rate).div(100).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+      record(ctx, "R_VAT_SYNTH", `vatBreakdown.${i}.tax`, moneyStr(v.tax));
+      fired = true;
+    } else if (v.net === null && v.tax !== null && v.rate > 0) {
+      // Fallback: no header net to apportion from, or more than one entry is
+      // incomplete. Accepts the rounding error because there is nothing better.
+      v.net = v.tax.times(100).div(v.rate).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+      record(ctx, "R_VAT_SYNTH", `vatBreakdown.${i}.net`, moneyStr(v.net));
+      fired = true;
+    }
+  });
 
   return fired;
 }

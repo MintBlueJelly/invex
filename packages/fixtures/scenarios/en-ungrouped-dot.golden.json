@@ -1,0 +1,122 @@
+{
+  "id": "en-ungrouped-dot",
+  "title": "English labels, dot decimals, NO thousands grouping — the INVEX-001 locale case",
+  "reviewed": true,
+  "authoredOn": "2026-07-25",
+  "render": {
+    "doc": {
+      "locale": "en",
+      "seller": {
+        "nameText": "Northgate Consulting Ltd",
+        "addressLines": [
+          "12 Bishopsgate",
+          "EC2N 4AJ London"
+        ],
+        "taxIdLine": "VAT Reg. No.: DE811907980"
+      },
+      "buyerLines": [
+        "Beispiel AG"
+      ],
+      "headingText": "Invoice",
+      "headerFields": [
+        {
+          "labelText": "Invoice No.",
+          "valueText": "INV-2026-0042"
+        },
+        {
+          "labelText": "Invoice Date",
+          "valueText": "2026-06-15"
+        }
+      ],
+      "tableHeaders": [
+        "No",
+        "Description",
+        "Qty",
+        "Unit Price",
+        "Amount"
+      ],
+      "lines": [
+        {
+          "posText": "1",
+          "descriptionText": "Consulting services June 2026",
+          "quantityText": "10",
+          "unitPriceText": "150.00",
+          "lineTotalText": "1500.00"
+        }
+      ],
+      "totalsBlock": [
+        {
+          "labelText": "Subtotal",
+          "valueText": "1500.00"
+        },
+        {
+          "labelText": "VAT 19 %",
+          "valueText": "285.00"
+        },
+        {
+          "labelText": "Total",
+          "valueText": "1785.00",
+          "bold": true
+        }
+      ],
+      "tableColumns": [
+        "position",
+        "description",
+        "quantity",
+        "unitPrice",
+        "lineTotal"
+      ]
+    }
+  },
+  "expected": {
+    "canonical": {
+      "schemaVersion": 1,
+      "invoiceNumber": "INV-2026-0042",
+      "issueDate": "2026-06-15",
+      "dueDate": null,
+      "currency": "EUR",
+      "locale": null,
+      "seller": {
+        "name": "Northgate Consulting Ltd",
+        "ustIdNr": "DE811907980",
+        "steuernummer": null,
+        "ibans": [],
+        "address": {
+          "street": "12 Bishopsgate",
+          "postalCode": null,
+          "city": null,
+          "countryCode": null
+        }
+      },
+      "buyer": null,
+      "totals": {
+        "net": "1500.00",
+        "tax": "285.00",
+        "gross": "1785.00"
+      },
+      "vatBreakdown": [
+        {
+          "rate": 19,
+          "net": "1500.00",
+          "tax": "285.00"
+        }
+      ],
+      "lineItems": [
+        {
+          "position": 1,
+          "description": "Consulting services June 2026",
+          "quantity": "10",
+          "unit": null,
+          "unitPrice": "150.00",
+          "taxRate": 19,
+          "lineTotal": "1500.00"
+        }
+      ],
+      "paymentTerms": null
+    },
+    "smoke": {
+      "route": "text"
+    }
+  },
+  "knownBug": "INVEX-047"
+}

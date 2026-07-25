@@ -1,0 +1,133 @@
+{
+  "id": "de-kleinunternehmer-19ustg",
+  "title": "Kleinunternehmer per §19 UStG: no VAT at all, Steuernummer instead of USt-IdNr",
+  "reviewed": true,
+  "authoredOn": "2026-07-25",
+  "render": {
+    "doc": {
+      "locale": "de",
+      "seller": {
+        "nameText": "Meier Beratung",
+        "addressLines": [
+          "Lindenallee 4",
+          "04109 Leipzig"
+        ],
+        "steuernummerLine": "Steuernummer: 143/824/61903",
+        "bankLines": [
+          "IBAN DE89370400440532013000"
+        ]
+      },
+      "buyerLines": [
+        "Beispiel AG"
+      ],
+      "headingText": "Rechnung",
+      "headerFields": [
+        {
+          "labelText": "Rechnungs-Nr.",
+          "valueText": "2026-014"
+        },
+        {
+          "labelText": "Rechnungsdatum",
+          "valueText": "11.04.2026"
+        }
+      ],
+      "tableHeaders": [
+        "Pos",
+        "Bezeichnung",
+        "Menge",
+        "Einzelpreis",
+        "Gesamt"
+      ],
+      "lines": [
+        {
+          "posText": "1",
+          "descriptionText": "Beratungsleistung April 2026",
+          "quantityText": "1",
+          "unitPriceText": "1.000,00",
+          "lineTotalText": "1.000,00"
+        }
+      ],
+      "totalsBlock": [
+        {
+          "labelText": "Zwischensumme",
+          "valueText": "1.000,00"
+        },
+        {
+          "labelText": "MwSt. 0 %",
+          "valueText": "0,00"
+        },
+        {
+          "labelText": "Gesamtbetrag",
+          "valueText": "1.000,00",
+          "bold": true
+        }
+      ],
+      "noteLines": [
+        "Gemäß § 19 UStG wird keine Umsatzsteuer berechnet."
+      ],
+      "tableColumns": [
+        "position",
+        "description",
+        "quantity",
+        "unitPrice",
+        "lineTotal"
+      ]
+    }
+  },
+  "expected": {
+    "canonical": {
+      "schemaVersion": 1,
+      "invoiceNumber": "2026-014",
+      "issueDate": "2026-04-11",
+      "dueDate": null,
+      "currency": "EUR",
+      "locale": null,
+      "seller": {
+        "name": "Meier Beratung",
+        "ustIdNr": null,
+        "steuernummer": "143/824/61903",
+        "ibans": [
+          "DE89370400440532013000"
+        ],
+        "address": {
+          "street": "Lindenallee 4",
+          "postalCode": "04109",
+          "city": "Leipzig",
+          "countryCode": null
+        }
+      },
+      "buyer": null,
+      "totals": {
+        "net": "1000.00",
+        "tax": "0.00",
+        "gross": "1000.00"
+      },
+      "vatBreakdown": [
+        {
+          "rate": 0,
+          "net": "1000.00",
+          "tax": "0.00"
+        }
+      ],
+      "lineItems": [
+        {
+          "position": 1,
+          "description": "Beratungsleistung April 2026",
+          "quantity": "1",
+          "unit": null,
+          "unitPrice": "1000.00",
+          "taxRate": 0,
+          "lineTotal": "1000.00"
+        }
+      ],
+      "paymentTerms": null
+    },
+    "smoke": {
+      "route": "text",
+      "terminalStatus": "committed",
+      "notEvents": [
+        "vlm_called"
+      ]
+    }
+  }
+}
