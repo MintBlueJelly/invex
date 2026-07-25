@@ -16,7 +16,7 @@
     "@invex/core": "workspace:*",
     "@napi-rs/canvas": "^1.0.2",
     "decimal.js": "^10.6.0",
-    "fast-xml-parser": "^5.9.3",
+    "fast-xml-parser": "^5.10.1",
     "pdf-lib": "^1.17.1"
   },
   "devDependencies": {
