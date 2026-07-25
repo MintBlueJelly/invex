@@ -74,13 +74,40 @@ function ocrLineItems(
     .map((start, i) => ({ start, i }))
     .filter((b): b is { start: number; i: number } => b.start !== null)
     .sort((a, b) => a.start - b.start);
-  const bandFor = (x: number): number | null => {
-    let current: { start: number; i: number } | null = null;
-    for (const band of known) {
-      // Small left-tolerance: value digits may start slightly before the header.
-      if (x >= band.start - 0.02) current = band;
+  // Column intervals: band k owns [start_k, start_{k+1}), with the outermost
+  // edges left open so tokens outside the header span still land somewhere.
+  const bounds = known.map((b, k) => ({
+    i: b.i,
+    lo: k === 0 ? Number.NEGATIVE_INFINITY : b.start,
+    hi: k === known.length - 1 ? Number.POSITIVE_INFINITY : known[k + 1]!.start,
+  }));
+
+  /**
+   * Assign a token by greatest horizontal OVERLAP with a column interval, not by
+   * its left edge.
+   *
+   * Amount columns are right-aligned on essentially every invoice, so a value
+   * wider than its header label starts to the left of that header. The previous
+   * rule — "left edge within 0.02 of a header start" — pushed such a value into
+   * the preceding column, and because that shifts every following token too, the
+   * whole row moved one column across: the quantity cell ended up holding
+   * "2 199,50" (which parseAmount happily fused into 2199.50) and the unit-price
+   * cell held the line total (INVEX-002).
+   *
+   * Ties are broken to the RIGHT: a token straddling a boundary evenly is far
+   * more likely to be a right-aligned number hanging back into the previous
+   * column than left-aligned text spilling forward.
+   */
+  const bandFor = (x0: number, x1: number): number | null => {
+    let best: { i: number; overlap: number } | null = null;
+    for (const b of bounds) {
+      const overlap = Math.min(x1, b.hi) - Math.max(x0, b.lo);
+      if (overlap >= (best?.overlap ?? Number.EPSILON)) best = { i: b.i, overlap };
     }
-    return current?.i ?? null;
+    if (best) return best.i;
+    // Zero-width or degenerate token: fall back to plain containment.
+    const containing = bounds.filter((b) => x0 >= b.lo);
+    return containing.length > 0 ? containing[containing.length - 1]!.i : null;
   };
 
   // 3. Data rows: merged lines below the header on the same page, until a
@@ -94,7 +121,7 @@ function ocrLineItems(
     const cells = Array<string>(descriptor.headerSignature.length).fill("");
     let assigned = 0;
     for (const token of line.tokens) {
-      const band = bandFor(token.bbox[0]);
+      const band = bandFor(token.bbox[0], token.bbox[2]);
       if (band === null) continue;
       cells[band] = cells[band] === "" ? token.text : `${cells[band]} ${token.text}`;
       assigned++;
