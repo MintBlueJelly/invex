@@ -107,7 +107,7 @@ export async function createTestEnv(opts?: TestEnvOptions): Promise<TestEnv> {
   const registry = buildRegistry();
   opts?.registry?.(registry);
   const machine = createMachine(ports, registry);
-  const app = buildApp({ db, config });
+  const app = buildApp({ db, config, worker: () => machine.health() });
   return {
     db,
     config,

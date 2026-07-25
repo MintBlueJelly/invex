@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import type { Logger } from "pino";
 import { z } from "zod";
 import type { AppConfig } from "../config";
+import type { MachineHealth } from "../pipeline/machine";
 import type { Db } from "../db/client";
 import {
   findReusableByHash,
@@ -25,6 +26,13 @@ export interface AppDeps {
   db: Db;
   config: AppConfig;
   log?: Logger;
+  /**
+   * Worker liveness probe. Without it /health cannot answer the question that
+   * actually matters in a single-replica deployment — DEPLOYMENT.md lists
+   * "documents pile up while /health returns ok" as its first troubleshooting
+   * row and calls it structurally undetectable (INVEX-009).
+   */
+  worker?: () => MachineHealth;
 }
 
 const DOCUMENT_STATUSES: DocumentStatus[] = [
@@ -197,7 +205,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     });
   });
 
-  app.get("/health", async () => {
+  app.get("/health", async (_req, reply) => {
     let dbOk = false;
     try {
       await db.execute(sql`select 1`);
@@ -214,7 +222,36 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     } catch {
       doclingOk = false;
     }
-    return { status: dbOk ? "ok" : "degraded", db: dbOk, docling: doclingOk };
+
+    // A tick may legitimately sit inside a 300s VLM call, so the stall
+    // threshold has to clear the longest legitimate stage before it can mean
+    // anything. Beyond that, a loop that is running but has not completed a
+    // tick is wedged — which is the poison-document failure mode.
+    const stallAfterMs = config.pipeline.vlm.requestTimeoutMs + 60_000;
+    const health = deps.worker?.();
+    const workerOk =
+      health === undefined
+        ? null
+        : health.running && Date.now() - (health.lastTickAt ?? 0) < stallAfterMs;
+
+    // docling being down does NOT degrade: it is a dependency, it recovers on
+    // its own, and the pipeline correctly retries. The database and the worker
+    // do, because neither recovers without intervention.
+    const ok = dbOk && workerOk !== false;
+    return reply.code(ok ? 200 : 503).send({
+      status: ok ? "ok" : "degraded",
+      db: dbOk,
+      docling: doclingOk,
+      worker:
+        health === undefined
+          ? null
+          : {
+              ok: workerOk,
+              running: health.running,
+              lastTickAt: health.lastTickAt === null ? null : new Date(health.lastTickAt).toISOString(),
+              busyForMs: health.inFlightSince === null ? null : Date.now() - health.inFlightSince,
+            },
+    });
   });
 
   return app;
