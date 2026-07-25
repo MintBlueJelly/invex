@@ -14,6 +14,7 @@
     "test": "vitest run --project unit --project prop --project component --project integration --project e2e",
     "test:unit": "vitest run --project unit",
     "test:prop": "vitest run --project prop",
+    "test:prop:deep": "FC_NUM_RUNS=5000 vitest run --project prop",
     "test:component": "vitest run --project component",
     "test:int": "vitest run --project integration --project e2e",
     "test:pg": "vitest run --project pg",

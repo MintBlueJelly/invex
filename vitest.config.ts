@@ -28,8 +28,9 @@ export default defineConfig({
       {
         test: {
           ...shared,
-          name: "prop", // fast-check invariants (Phase 5')
+          name: "prop", // fast-check invariants
           include: ["packages/*/test/property/**/*.prop.test.ts"],
+          setupFiles: ["./packages/core/test/utils/fastCheck.setup.ts"],
           testTimeout: 30_000,
         },
       },

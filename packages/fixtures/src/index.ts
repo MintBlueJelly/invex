@@ -42,3 +42,17 @@ export {
   type Golden,
   type GoldenSmoke,
 } from "./goldens";
+
+// ── adversarial corpus (ingest-robustness) ──────────────────────────────────
+export {
+  adversarialFilenames,
+  makeHeaderOnlyPdf,
+  makeHugeMediaBoxPdf,
+  makeManyPagesPdf,
+  makeMultiXmlAttachmentPdf,
+  makeNotAPdf,
+  makeTruncatedPdf,
+  makeWrongTypeAttachmentPdf,
+  makeXmlBombZugferdPdf,
+  makeZeroBytePdf,
+} from "./generators/adversarial";
