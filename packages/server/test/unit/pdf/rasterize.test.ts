@@ -5,7 +5,7 @@ import { MAX_RASTER_PIXELS, rasterizePdf } from "../../../src/pdf/rasterize";
 /**
  * INVEX-006 — the rasterizer had no page-dimension guard.
  *
- * This is the concrete mechanism behind the poison document DEPLOYMENT.md
+ * This is the concrete mechanism behind the poison document docs/deployment.md
  * describes. A PDF declaring a huge MediaBox asks for a canvas of
  * width x height x dpi/72 pixels; at the configured 150 dpi a 200x200 inch page
  * is ~30000x30000 = 900 megapixels, i.e. ~3.6 GB of RGBA. The process is

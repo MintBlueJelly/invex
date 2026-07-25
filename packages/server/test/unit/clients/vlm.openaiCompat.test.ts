@@ -4,7 +4,7 @@ import { closedPortUrl, startStubQueue, startStubServer } from "../../utils/http
 import { knownBug } from "../../../../../test-utils/knownBug";
 
 /**
- * LiteLLM-fronted vLLM/llama-swap (DEPLOYMENT.md): a cold model load takes
+ * LiteLLM-fronted vLLM/llama-swap (docs/deployment.md): a cold model load takes
  * 1.5-2.5 minutes and a 503 mid-swap is called out as routine. These cover the
  * wire contract (schema modes, image framing, auth) and the failure shapes
  * that reach this client in that deployment.
@@ -212,7 +212,7 @@ describe("createOpenAiCompatVlm — INVEX-048 (503 during a model swap is not re
 
   knownBug(
     "INVEX-048",
-    "openaiCompat retries only on unparseable JSON — a 503 mid model-swap (DEPLOYMENT.md calls this routine) costs the attempt",
+    "openaiCompat retries only on unparseable JSON — a 503 mid model-swap (docs/deployment.md calls this routine) costs the attempt",
   ).it("retries a 503 the same way it retries invalid JSON", async () => {
     const s = await startStubQueue([{ status: 503, text: "loading model" }, reply('{"total":1}')]);
     try {

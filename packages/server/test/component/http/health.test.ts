@@ -7,7 +7,7 @@ import { testConfig } from "../../utils/testEnv";
  * INVEX-009 — /health could not report an unhealthy service.
  *
  * It always returned HTTP 200, so a Kubernetes probe never failed, and it said
- * nothing about the worker. DEPLOYMENT.md lists "documents pile up in
+ * nothing about the worker. docs/deployment.md lists "documents pile up in
  * non-terminal statuses while /health returns ok" as its FIRST troubleshooting
  * row and notes the probes structurally cannot detect it. With one replica and
  * a Recreate strategy, that is the difference between a self-healing restart

@@ -40,7 +40,7 @@ describe("diffCanonical", () => {
   });
 
   it("distinguishes null from a missing key", () => {
-    // "nullable is not the same as optional" (API.md) — a dropped dueDate and an
+    // "nullable is not the same as optional" (docs/api.md) — a dropped dueDate and an
     // explicit null are different extraction outcomes and must diff differently.
     expect(diffCanonical({ dueDate: null }, { dueDate: null })).toEqual([]);
     expect(diffCanonical({ dueDate: "2026-07-15" }, {})).toHaveLength(1);

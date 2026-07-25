@@ -4,7 +4,7 @@ import { closedPortUrl, startStubQueue, startStubServer } from "../../utils/http
 import { knownBug } from "../../../../../test-utils/knownBug";
 
 /**
- * docling-serve is the most failure-prone dependency per DEPLOYMENT.md (single
+ * docling-serve is the most failure-prone dependency per docs/deployment.md (single
  * StatefulSet replica, no route redundancy) — these cover the wire contract and
  * the failure shapes an operator actually hits: restarts, a proxy's non-JSON
  * error page, and a slow response during a busy OCR/TableFormer pass.
@@ -129,7 +129,7 @@ describe("createDoclingClient — INVEX-051 (no retries, no response validation)
 
   knownBug(
     "INVEX-051",
-    "docling.ts has no retries despite being the most failure-prone dependency (DEPLOYMENT.md)",
+    "docling.ts has no retries despite being the most failure-prone dependency (docs/deployment.md)",
   ).it("retries a transient 503 instead of failing the document on the first restart blip", async () => {
     const s = await startStubQueue([{ status: 503, text: "loading" }, { json: GOOD_DOCUMENT }]);
     try {

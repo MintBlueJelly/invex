@@ -13,7 +13,7 @@ import { eq } from "drizzle-orm";
  * sleep. Claims are ordered oldest-first and the document is still under
  * maxAttempts, so the next tick re-claimed the SAME row immediately: all three
  * attempts burned within a few hundred milliseconds. One docling restart, or
- * one llama-swap 503 during a cold model load — both routine per DEPLOYMENT.md
+ * one llama-swap 503 during a cold model load — both routine per docs/deployment.md
  * — therefore drove every in-flight document to `failed` permanently.
  */
 

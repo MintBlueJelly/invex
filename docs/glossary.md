@@ -14,9 +14,9 @@ checking an invoice against *itself*.
 | [A · Reading an invoice](#a--reading-an-invoice) | the document domain, and German tax specifics |
 | [B · How InvEx works](#b--how-invex-works) | the pipeline, end to end |
 | [C · The AI parts](#c--the-ai-parts) | what the models do, and what they cost |
-| [D · Testing vocabulary](#d--testing-vocabulary) | needed for [REVIEW.md](./REVIEW.md) and [docs/known-bugs.md](./docs/known-bugs.md) |
+| [D · Testing vocabulary](#d--testing-vocabulary) | needed for [review.md](./review.md) and [known-bugs.md](./known-bugs.md) |
 | [E · Words that mean something specific here](#e--words-that-mean-something-specific-here) | **the disambiguation table** |
-| [F · Deployment](#f--deployment) | needed for [DEPLOYMENT.md](./DEPLOYMENT.md) |
+| [F · Deployment](#f--deployment) | needed for [deployment.md](./deployment.md) |
 
 ---
 
@@ -88,7 +88,7 @@ missing. See → reconciliation, → repair, → violation. Referred to througho
 
 **cost ladder** — The system's central idea: cheap deterministic code first, the GPU model only if that
 fails, a human only if that fails too. Each rung costs orders of magnitude more than the one below.
-→ escalation. ⚠ [DEPLOYMENT.md](./DEPLOYMENT.md) also has a *timeout* ladder — an unrelated set of nested
+→ escalation. ⚠ [deployment.md](./deployment.md) also has a *timeout* ladder — an unrelated set of nested
 time limits.
 
 **deterministic path** — Plain, rule-based code running on an ordinary CPU: no AI, effectively free,
@@ -151,7 +151,7 @@ on the header totals, ±0.01 per line. Without it, ordinary rounding would make 
 always ask *why* a document ended up where it did, rather than reconstructing it from logs.
 
 **triage** — The first, cheap look at a PDF that decides which of the three paths it takes. ⚠ Also used in
-its ordinary human sense in [REVIEW.md](./REVIEW.md) ("a real invoice you triage").
+its ordinary human sense in [review.md](./review.md) ("a real invoice you triage").
 
 **vendor resolution** — Working out which supplier sent a document so the right template can be applied.
 Tries the identifiers in order of reliability: USt-IdNr, then Steuernummer, then any IBAN, then a hash of
@@ -175,19 +175,15 @@ polled for.
 
 **cold load** — When the GPU has to load a model into memory before it can answer. Measured at 1 m 29 s
 to 2 m 38 s in the reference deployment — so a cold load costs more than the extraction itself, and it is
-the single number that justifies trying so hard to avoid the GPU. → model residency
+the single number that justifies trying so hard to avoid the GPU.
 
 **docling** — A separate service InvEx sends PDFs to for page-layout analysis and OCR. It is what turns
 "a PDF" into "text with positions and tables". **TableFormer** is the model inside it that recognises
 table structure — the thing that finds the line-item grid.
 
-**LiteLLM alias** — A stable nickname for a model (`doc-vision`, `ha-agent`) that carries its own timeout
+**LiteLLM alias** — A stable nickname for a model (InvEx uses `doc-vision`) that carries its own timeout
 and fallback policy. Callers bind to the alias, never to a raw model name, so the model underneath can
 change without breaking anything.
-
-**model residency** — Whether a model is currently sitting in GPU memory. Only one large model fits at a
-time, so a request for a different one evicts it — and the next request for the first pays a → cold load.
-Note that "never idle-unloaded" is *not* the same as "always resident": it only disables the idle timer.
 
 **OCR** — Optical character recognition: turning a picture of a page into text. Note InvEx uses it
 deliberately *cheaply* on Path C — initially only to spot the vendor's identifiers, not to read the whole
@@ -205,7 +201,7 @@ time. → cost ladder
 
 ## D · Testing vocabulary
 
-**"agrees with itself"** — The circular-test flaw at the centre of [REVIEW.md](./REVIEW.md). The old
+**"agrees with itself"** — The circular-test flaw at the centre of [review.md](./review.md). The old
 suite generated the expected answers with the same code that generated the test documents, so it could
 only ever confirm the code was consistent with itself — never that it was *correct*. Also written as "the
 suite could not fail for the right reason".
@@ -244,8 +240,8 @@ forgotten, and it cannot be fixed without someone noticing.
 
 **known bug / pin** — A defect deliberately left unfixed but recorded in code by a test asserting it is
 still broken. "Pinned" means nailed in place by an executing test rather than a note in a wiki. Each
-carries an `INVEX-nnn` id joining a row in [docs/known-bugs.md](./docs/known-bugs.md), a test, and a
-paragraph in [REVIEW.md](./REVIEW.md).
+carries an `INVEX-nnn` id joining a row in [known-bugs.md](./known-bugs.md), a test, and a
+paragraph in [review.md](./review.md).
 
 **lane** — One slice of the test suite (`unit`, `component`, `integration`, `e2e`, and so on), defined by
 what its tests own and the cheapest machinery that can hold them; each runs on its own. ⚠ "Lane" also
@@ -334,7 +330,7 @@ real local server so that timeouts and connection resets are genuine rather than
 **claim**
 1. *The worker claims a document* — takes exclusive ownership of it so no other worker touches it.
 2. *A storage claim* (`claimRef`, PVC) — a Kubernetes disk reservation.
-*Telling them apart:* sense 2 only appears in [DEPLOYMENT.md](./DEPLOYMENT.md)'s storage sections.
+*Telling them apart:* sense 2 only appears in [deployment.md](./deployment.md)'s storage sections.
 
 **corpus**
 1. *Golden corpus* — documents that should be read correctly.
@@ -373,27 +369,9 @@ text/image/zugferd, sense 1.
 
 ## F · Deployment
 
-**ClusterIP / no public route** — InvEx is reachable only from *inside* the cluster; it has no public
-hostname. This is deliberate and is the entire security model, because the service has no login of its
-own. Operator access is a temporary tunnel (`kubectl port-forward`).
-
-**GitOps** — The cluster's configuration lives in git and is applied automatically. You change the
-system by changing git; there is no manual `kubectl apply`, and anything not in git is removed.
-
 **liveness / readiness probe** — Kubernetes' automatic health poke: if the service stops answering, it
 gets restarted. The review's finding was that InvEx's probe could never fail, so it could not trigger the
 restart it exists for.
-
-**n8n** — A workflow-automation tool, deployed as the *intended* way to feed emailed PDF attachments into
-InvEx. It is running but **not yet connected** — which matters, because wiring it changes the input from
-"files we chose" to "arbitrary bytes from the internet".
-
-**OOMKilled** — The container was killed for using too much memory. The mechanism behind the
-→ poison document.
-
-**`Recreate`** — A deployment strategy: on update, fully stop the old copy *before* starting the new one.
-Chosen deliberately here — two overlapping copies would race each other on the database migration and the
-work queue — at the cost of a short outage on every deploy.
 
 **replica** — How many copies of the service run. InvEx runs exactly **one**, on purpose. Much of the
 review's severity ranking follows from that: with one replica, anything that stops the worker stops
@@ -405,7 +383,7 @@ against the data being wrong.
 
 ---
 
-*Something missing or unclear? The source documents are [QUICKSTART.md](./QUICKSTART.md) (what and why),
-[README.md](./README.md) (architecture), [API.md](./API.md) (the wire contract),
-[DEPLOYMENT.md](./DEPLOYMENT.md) (operations), [REVIEW.md](./REVIEW.md) (the code review) and
-[invex-briefing.md](./invex-briefing.md) (the original design brief).*
+*Something missing or unclear? The source documents are [about.md](./about.md) (what and why),
+[README.md](../README.md) (architecture), [api.md](./api.md) (the wire contract),
+[deployment.md](./deployment.md) (operations), [review.md](./review.md) (the code review) and
+[briefing.md](./briefing.md) (the original design brief).*

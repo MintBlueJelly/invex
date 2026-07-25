@@ -1,11 +1,11 @@
 # InvEx — code review
 
 A test-driven review of the whole pipeline, ranked by what it costs **this** deployment
-([DEPLOYMENT.md](./DEPLOYMENT.md)) rather than by code aesthetics.
+([deployment.md](./deployment.md)) rather than by code aesthetics.
 
 Every claim here is backed by a test that runs. Nothing below is an opinion about how the code reads;
 each finding was reproduced by executing the path, and each has an `INVEX-nnn` id in
-[docs/known-bugs.md](./docs/known-bugs.md) with the test that pins it. Where the original review notes
+[known-bugs.md](./known-bugs.md) with the test that pins it. Where the original review notes
 turned out to overstate a problem, the entry says so.
 
 **State:** 53 findings — **11 fixed** with regression tests, **42 pinned** as a machine-checked
@@ -14,10 +14,10 @@ and 70.8 % to 83.9 % branches. CI now runs it and gates the image build.
 
 | | |
 | --- | --- |
-| Backlog, machine-checked | [docs/known-bugs.md](./docs/known-bugs.md) |
+| Backlog, machine-checked | [known-bugs.md](./known-bugs.md) |
 | What is still broken, right now | `pnpm test:known-bugs` (expected to be red — that is the report) |
-| Orientation for a non-engineer | [QUICKSTART.md](./QUICKSTART.md) |
-| Any term below you would struggle to explain | [GLOSSARY.md](./GLOSSARY.md) |
+| Orientation for a non-engineer | [about.md](./about.md) |
+| Any term below you would struggle to explain | [glossary.md](./glossary.md) |
 
 ---
 
@@ -32,7 +32,7 @@ arithmetic. And because `computeInvoice()` filled `quantity`, `unitPrice` and `t
 That is not an abstract concern. `INVEX-034` is the concrete cost: a parenthesised qualifier after a
 label defeats value extraction, and `packages/fixtures/src/textPdf.ts` printed exactly
 `"Zwischensumme (netto)"`. So the canonical text fixture never extracted `totals.net` by rule;
-`R_NET_FROM_LINES` repaired it instead — and `API.md`'s worked example records that repair as the
+`R_NET_FROM_LINES` repaired it instead — and `api.md`'s worked example records that repair as the
 expected path. **A defect became the documented behaviour, because the fixture and the expectation
 shared an author.**
 
@@ -101,7 +101,7 @@ A3 page or a schema change throws instead of producing plausible nonsense.
 **`INVEX-006` — the rasterizer had no dimension guard.** A 200×200 inch MediaBox at 150 dpi asks for
 ~900 megapixels (~3.6 GB) against a 1Gi limit. The OOM rolls the claim transaction back **without
 incrementing `attempts`**, and claims are oldest-first, so the document is re-claimed on every restart
-and blocks everything behind it. This is `DEPLOYMENT.md`'s poison document, and the intended entry point
+and blocks everything behind it. This is `deployment.md`'s poison document, and the intended entry point
 is email attachments. Now rejected before allocating, which turns a wedge into an ordinary stage error.
 
 **`INVEX-007` — three retries burned in one event-loop burst.** A stage error returned "processed",
@@ -114,7 +114,7 @@ requeue endpoint.
 Unvalidated `:id` reached a uuid column. Wrong status code and internals disclosure on the same request.
 
 **`INVEX-009` — `/health` could not report unhealthy.** Always HTTP 200, so a Kubernetes probe could
-never fail, and it said nothing about the worker. `DEPLOYMENT.md` lists this first in its troubleshooting
+never fail, and it said nothing about the worker. `deployment.md` lists this first in its troubleshooting
 table and calls it structurally undetectable. Now 503 when degraded, with worker liveness — and
 deliberately *not* degraded by docling being down (it recovers on its own) or by a tick legitimately
 sitting inside a 300 s VLM call.
@@ -139,7 +139,7 @@ first's checksum-verified identity.
 
 42 findings, all pinned. Deliberately not fixed: each changes what the extractor *outputs*, and the right
 output is a question the golden corpus and real documents should answer, not one to guess at. Full detail
-in [docs/known-bugs.md](./docs/known-bugs.md).
+in [known-bugs.md](./known-bugs.md).
 
 ### 1 — Deterministic coverage is being thrown away
 
@@ -184,20 +184,20 @@ index, so one skipped item desynchronises provenance for everything after it.
 
 ### 3 — Configuration that fails quietly
 
-**`INVEX-053`** — `VLM_ENABLED=1`, `=yes`, `=TRUE` or `=on` all silently **disable** the VLM. Your cluster
-switches the entire escalation path on with that one variable. **`INVEX-020`** — an unknown or misspelled
+**`INVEX-053`** — `VLM_ENABLED=1`, `=yes`, `=TRUE` or `=on` all silently **disable** the VLM. The reference
+deployment switches the entire escalation path on with that one variable. **`INVEX-020`** — an unknown or misspelled
 classifier weight key contributes 0 with no error, for a value the briefing says must be empirically
 calibrated. **`INVEX-054`** — `PORT=web` binds an arbitrary free port instead of failing.
 
 ### 4 — The untrusted-input surface
 
-The trust model changes the moment n8n is wired: `DEPLOYMENT.md` justifies having no authentication by
-keeping InvEx on a trusted network, but the *intended* entry point is IMAP attachments — arbitrary bytes
-from the internet.
+The trust model changes the moment a batch intake is wired: InvEx has no authentication of its own and
+relies on being kept on a trusted network, but the *intended* entry point is IMAP attachments —
+arbitrary bytes from the internet.
 
 **`INVEX-055`** — ingest accepts any bytes as a PDF (no magic number, no media type, field name unchecked)
 while allowing 50 × 100 MB per request into the Node heap and then into Postgres, the database
-`DEPLOYMENT.md` identifies as the only copy of every document. **`INVEX-057`** — a NUL byte in a filename
+`deployment.md` identifies as the only copy of every document. **`INVEX-057`** — a NUL byte in a filename
 reaches Postgres and returns 500 with the SQL and its bound parameters; attachment filenames are
 attacker-controlled text. **`INVEX-056`** — ingest is not atomic across parts, so a later failure orphans
 the already-committed documents with no id returned to the caller.
@@ -245,18 +245,19 @@ without touching the deployment topology — and the claim logic is already corr
 `invoice-extract.md`, yet the response schema demands `isInvoice` and `markdown`, which that prompt never
 mentions. A non-invoice sent to the VLM gets an extraction-only instruction. `templates.minFieldConfidence`
 is validated and read by no code, reading like an implemented quality gate that does not exist. And
-`vlm.requestTimeoutMs` also governs the **docling** client, so `DEPLOYMENT.md`'s timeout ladder understates
+`vlm.requestTimeoutMs` also governs the **docling** client, so `deployment.md`'s timeout ladder understates
 what that knob controls.
 
 **5. The classifier's `uncertain` band is inert as shipped.**
 With `vlm.enabled: false`, scores 4–6 have no consumer — `textLane.ts` gates on it — so the briefing's
-three-band design collapses to two, and no document tells you. Your cluster sets `VLM_ENABLED=true`, so
+three-band design collapses to two, and no document tells you. The reference deployment sets
+`VLM_ENABLED=true`, so
 this bites the repository default rather than production; but see `INVEX-053`, where a plausible spelling
 of that variable silently turns it back off.
 
 **6. `pending_review` is a black hole in production today.**
-Not a code defect — an operational gap. There is no review UI (a deliberate MVP cut) and n8n is not wired,
-so escalated documents land in a status nobody observes. The briefing's feedback loop — every escalation
+Not a code defect — an operational gap. There is no review UI (a deliberate MVP cut) and no batch intake
+is wired, so escalated documents land in a status nobody observes. The briefing's feedback loop — every escalation
 creates or updates a template — is the system's entire reason for existing, and it is currently open at
 the human end. `GET /api/review` is the whole interface.
 
@@ -317,8 +318,8 @@ calibration finally has its sample.
   fixture from the shared layout seam rather than hand-typed JSON, which removes the drift risk — but
   `docker-compose.yaml` still pins v1.26.0 while the cluster runs v1.27.0, and neither has been captured.
   This remains the open item `README.md` already flags.
-- **Nothing is pushed.** 21 commits sit on `main` locally. `README.md`, `API.md` and `DEPLOYMENT.md` were
-  already uncommitted when I started; `API.md` carries my edit documenting the new `422` but is otherwise
+- **Nothing is pushed.** 21 commits sit on `main` locally. `README.md`, `api.md` and `deployment.md` were
+  already uncommitted when I started; `api.md` carries my edit documenting the new `422` but is otherwise
   untouched and unstaged.
 
 ## Where I would start

@@ -296,7 +296,7 @@ describe("runRuleEngine — parenthesised label qualifiers", () => {
     .it("extracts the net total from 'Zwischensumme (netto)'", () => {
       // Not hypothetical: packages/fixtures/src/textPdf.ts:27 prints exactly this
       // label, so the canonical text fixture never extracts totals.net by rule —
-      // R_NET_FROM_LINES repairs it instead, and API.md's worked example records
+      // R_NET_FROM_LINES repairs it instead, and docs/api.md's worked example records
       // that repair as if it were the expected path. A bug became the documented
       // behaviour because the fixture and the expectation share an author.
       const d = doc([line("Zwischensumme (netto) 1.148,70", { y: 0.1 })]);

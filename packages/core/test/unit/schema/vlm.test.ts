@@ -218,7 +218,7 @@ describe("invoice.ts sub-schemas — negative cases (complementing invoice.test.
   });
 
   it("distinguishes a MISSING optional key from an explicit null (nullable is not the same as optional)", () => {
-    // API.md is explicit that these differ. zPostalAddress/zSeller etc. use
+    // docs/api.md is explicit that these differ. zPostalAddress/zSeller etc. use
     // `.nullable()` everywhere, not `.optional()`, so a key must always be
     // present — VLM output that OMITS a nullable field is a schema violation,
     // not a benign gap.

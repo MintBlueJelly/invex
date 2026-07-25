@@ -1,6 +1,6 @@
 # InvEx — Deterministic-First Invoice Extraction
 
-TypeScript implementation of the InvEx document-ingestion pipeline ([briefing](./invex-briefing.md)).
+TypeScript implementation of the InvEx document-ingestion pipeline ([briefing](./docs/briefing.md)).
 PDFs go in; **canonical invoice JSON** (header, VAT breakdown, full line items) or **Markdown**
 (non-invoices) comes out.
 
@@ -91,18 +91,17 @@ invoice **and** template feedback) · `GET /api/templates[/:id]` · `GET /api/es
 `GET /health`
 
 Full reference — every endpoint with request/response shapes, the canonical invoice schema, all
-enums and the behavioral sharp edges: **[API.md](./API.md)**.
+enums and the behavioral sharp edges: **[docs/api.md](./docs/api.md)**.
 
-Unfamiliar term? **[GLOSSARY.md](./GLOSSARY.md)** covers the domain, pipeline, AI and testing
+Unfamiliar term? **[docs/glossary.md](./docs/glossary.md)** covers the domain, pipeline, AI and testing
 vocabulary — and the words that mean something specific in this codebase (`lane`, `band`, `fixture`,
 `reconciliation`).
 
 ## Deployment
 
 Running InvEx needs Postgres, a docling-serve instance and — for the VLM path — an OpenAI-compatible
-endpoint. **[DEPLOYMENT.md](./DEPLOYMENT.md)** documents a real Kubernetes deployment end to end:
-topology, the timeout relationships between the hops, GPU model residency, what holds state, and a
-troubleshooting playbook.
+endpoint. **[docs/deployment.md](./docs/deployment.md)** covers that service stack: how the parts relate, how to
+feed it as a batch consumer, what holds state, and a troubleshooting playbook.
 
 ## Config
 
@@ -116,10 +115,10 @@ troubleshooting playbook.
 
 - **Classifier band calibration** needs a labeled sample of the real document mix (briefing §11).
 - **VLM model/hosting** is settled for the reference deployment (a vision-capable model behind
-  LiteLLM — see [DEPLOYMENT.md](./DEPLOYMENT.md)); broader real-model evaluation is still open.
+  LiteLLM — see [docs/deployment.md](./docs/deployment.md)); broader real-model evaluation is still open.
 - **Docling response pinning**: the DoclingDocument mapper is tested against hand-authored
   fixtures; capture a live docling-serve response and commit it
-  (swap into `packages/server/test/utils/doclingFixtures.ts`). Note the compose file pins an older
-  docling-serve than the reference deployment runs — bump both together.
+  (swap into `packages/server/test/utils/doclingFixtures.ts`). Note the compose file may pin an older
+  docling-serve than you run in production — bump both together.
 - The compose `app` profile is still unverified; `packages/server/Dockerfile` builds in CI and the
   resulting image runs in the reference deployment.

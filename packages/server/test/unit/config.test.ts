@@ -7,7 +7,7 @@ import { knownBug } from "../../../../test-utils/knownBug";
 
 /**
  * loadConfig(env) is how the reference deployment turns the VLM escalation
- * path on (DEPLOYMENT.md: committed config/pipeline.json ships vlm.enabled:
+ * path on (docs/deployment.md: committed config/pipeline.json ships vlm.enabled:
  * false, the cluster sets VLM_ENABLED=true). These tests exercise every env
  * override with an explicit env object — never process.env.
  */
@@ -35,7 +35,7 @@ function altConfigDir(patchPipeline: (p: Record<string, any>) => void): string {
 describe("loadConfig defaults (empty env)", () => {
   const cfg = loadConfig({});
 
-  it("matches the committed pipeline.json — vlm.enabled is false, as DEPLOYMENT.md assumes", () => {
+  it("matches the committed pipeline.json — vlm.enabled is false, as docs/deployment.md assumes", () => {
     expect(cfg.pipeline.vlm.enabled).toBe(false);
   });
 

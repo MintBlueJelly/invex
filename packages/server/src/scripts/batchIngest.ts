@@ -29,7 +29,7 @@ interface Expectation {
 /** Field-level diff, so a mismatch says WHICH field rather than "not equal". */
 /**
  * Money and quantity are decimal STRINGS and are deliberately not zero-padded
- * (API.md: `"199.5"` is possible), so "199.50" and "199.5" are the same amount
+ * (docs/api.md: `"199.5"` is possible), so "199.50" and "199.5" are the same amount
  * spelled two ways. Compare by value — this harness checks extraction, not
  * formatting, and a diff that fires on trailing zeros trains people to ignore it.
  */

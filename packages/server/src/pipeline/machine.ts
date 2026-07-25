@@ -41,7 +41,7 @@ export interface StageRegistry {
  *
  * The probe could not answer it before, so `{"status":"ok"}` was fully
  * compatible with a server that ingests documents and never processes one —
- * the exact failure DEPLOYMENT.md lists first in its troubleshooting table and
+ * the exact failure docs/deployment.md lists first in its troubleshooting table and
  * describes as structurally undetectable (INVEX-009).
  */
 export interface MachineHealth {

@@ -28,7 +28,7 @@ export interface AppDeps {
   log?: Logger;
   /**
    * Worker liveness probe. Without it /health cannot answer the question that
-   * actually matters in a single-replica deployment — DEPLOYMENT.md lists
+   * actually matters in a single-replica deployment — docs/deployment.md lists
    * "documents pile up while /health returns ok" as its first troubleshooting
    * row and calls it structurally undetectable (INVEX-009).
    */

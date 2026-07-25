@@ -24,12 +24,12 @@ import { knownBug } from "../../../../test-utils/knownBug";
 
 /**
  * The adversarial corpus, ingested through the real HTTP route and the real
- * worker loop (PGlite, no external services). DEPLOYMENT.md's poison-document
+ * worker loop (PGlite, no external services). docs/deployment.md's poison-document
  * failure mode exists because InvEx is one replica on `Recreate` with an
  * in-process worker: a document that kills the process instead of failing it
  * rolls its claim back WITHOUT incrementing `attempts`, and claims are
  * oldest-first, so it wedges the ENTIRE queue on every restart. n8n reading
- * email attachments is the intended batch entry point (README.md/DEPLOYMENT.md)
+ * email attachments is the intended batch entry point (README.md/docs/deployment.md)
  * — arbitrary bytes from the public internet, unreviewed. Every case here is
  * something that arrives in an inbox sooner or later.
  *
@@ -152,7 +152,7 @@ describe("adversarial corpus — ingest-level guards (not just the unit-level ra
   it(
     "a 14400x14400pt MediaBox: imageLane escalates an unresolved vendor to the VLM, " +
       "rasterizePdf's pixel-budget guard throws as an ordinary caught stage error, and the " +
-      "document reaches failed after retries — never the OOM DEPLOYMENT.md warns about",
+      "document reaches failed after retries — never the OOM docs/deployment.md warns about",
     async () => {
       // packages/server/test/unit/pdf/rasterize.test.ts already pins the guard
       // itself; this proves the PIPELINE reaches it and survives, which needs
@@ -257,7 +257,7 @@ describe("adversarial corpus — the queue survives it (the acceptance criterion
     }
 
     // THE assertion. Nothing above may have left the worker's claim loop
-    // wedged (DEPLOYMENT.md's poison-document scenario) — proven by a fresh,
+    // wedged (docs/deployment.md's poison-document scenario) — proven by a fresh,
     // ordinary invoice still reaching `committed` right after the corpus.
     docling.enqueue(goldenDocling(STANDARD), `# ${STANDARD.render!.doc.headingText}`);
     const goldenBytes = await goldenPdf(STANDARD);

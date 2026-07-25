@@ -12,7 +12,7 @@ import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
  * That is not merely a failed document. The kill rolls the claim transaction
  * back WITHOUT incrementing `attempts`, and claims are ordered oldest-first, so
  * the same document is re-claimed immediately on every restart and blocks the
- * whole queue — the poison document in DEPLOYMENT.md's troubleshooting section.
+ * whole queue — the poison document in docs/deployment.md's troubleshooting section.
  * With one replica on a Recreate strategy there is nothing else to pick up the
  * work (INVEX-006).
  *

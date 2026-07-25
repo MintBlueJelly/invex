@@ -14,7 +14,7 @@ There are three ways to read an invoice, and they differ in cost by orders of ma
 | | Cost | Speed |
 | --- | --- | --- |
 | **Deterministic code on a CPU** | negligible | milliseconds |
-| **A vision language model on a GPU** | significant | seconds to minutes — a cold model load alone measures 1½–2½ minutes in our deployment |
+| **A vision language model on a GPU** | significant | seconds to minutes — loading the model alone can take minutes |
 | **A person** | the most expensive thing in the system | minutes, and they have to be available |
 
 So InvEx is built as a **ladder**: always try the cheap path first, escalate only when it genuinely
@@ -122,8 +122,8 @@ path — any OpenAI-compatible endpoint serving a vision-capable model. The visi
 
 | Document | For |
 | --- | --- |
-| [README.md](./README.md) | Engineers — architecture, packages, how to build and test it |
-| [API.md](./API.md) | Anyone integrating with it — every endpoint, the invoice schema, the sharp edges |
-| [DEPLOYMENT.md](./DEPLOYMENT.md) | Operators — a real Kubernetes deployment, what holds state, what breaks |
-| [GLOSSARY.md](./GLOSSARY.md) | Anyone — every term used across these documents, and the words that mean something specific here |
-| [invex-briefing.md](./invex-briefing.md) | The original design brief and the reasoning behind it |
+| [README.md](../README.md) | Engineers — architecture, packages, how to build and test it |
+| [api.md](./api.md) | Anyone integrating with it — every endpoint, the invoice schema, the sharp edges |
+| [deployment.md](./deployment.md) | Operators — the services InvEx needs, what holds state, what breaks |
+| [glossary.md](./glossary.md) | Anyone — every term used across these documents, and the words that mean something specific here |
+| [briefing.md](./briefing.md) | The original design brief and the reasoning behind it |
