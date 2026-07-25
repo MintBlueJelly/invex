@@ -1,4 +1,4 @@
-import { eq, inArray, sql } from "drizzle-orm";
+import { desc, eq, inArray, sql } from "drizzle-orm";
 import type { VendorTemplate } from "@invex/core";
 import type { DbOrTx } from "./documents";
 import { vendorTemplateIbans, vendorTemplates, type TemplateSource } from "../schema";
@@ -81,7 +81,20 @@ export async function upsertTemplate(
     nameHash: ids.nameHash ?? null,
   });
 
-  if (existing) {
+  // A NON-matching strong identifier is decisive evidence of a different vendor.
+  // resolveVendor falls through ustIdNr -> steuernummer -> iban -> nameHash, which
+  // is the right LOOKUP order but the wrong merge rule: two vendors sharing a
+  // payment-provider IBAN (or one mis-OCR'd IBAN) both resolved to the same row,
+  // and the second overwrote the first's ustIdNr and nameHash outright — erasing
+  // a checksum-verified identity on the strength of a weaker match (INVEX-011).
+  const conflicts =
+    existing !== null &&
+    existing.matchedBy !== "ustIdNr" &&
+    existing.matchedBy !== "steuernummer" &&
+    ((ids.ustIdNr && existing.row.ustIdNr && ids.ustIdNr !== existing.row.ustIdNr) ||
+      (ids.steuernummer && existing.row.steuernummer && ids.steuernummer !== existing.row.steuernummer));
+
+  if (existing && !conflicts) {
     const merged: VendorTemplate = {
       ...template,
       vendorIds: {
@@ -92,21 +105,25 @@ export async function upsertTemplate(
         ],
       },
     };
-    const version = existing.row.version + 1;
-    await db
+    // version = version + 1 in SQL, and the stored value is read back from
+    // RETURNING. Computing it in application code is a read-modify-write: two
+    // concurrent commits for the same vendor both read v3, both write v4, and
+    // one template's field set is silently lost.
+    const updated = await db
       .update(vendorTemplates)
       .set({
         template: merged as unknown as Record<string, unknown>,
-        version,
+        version: sql`${vendorTemplates.version} + 1`,
         source,
         ustIdNr: merged.vendorIds.ustIdNr ?? existing.row.ustIdNr,
         steuernummer: merged.vendorIds.steuernummer ?? existing.row.steuernummer,
         nameHash: merged.vendorIds.nameHash ?? existing.row.nameHash,
         updatedAt: sql`now()`,
       })
-      .where(eq(vendorTemplates.id, existing.row.id));
+      .where(eq(vendorTemplates.id, existing.row.id))
+      .returning({ version: vendorTemplates.version });
     await linkIbans(db, existing.row.id, merged.vendorIds.ibans ?? []);
-    return { id: existing.row.id, version, created: false };
+    return { id: existing.row.id, version: updated[0]!.version, created: false };
   }
 
   const rows = await db
@@ -124,17 +141,29 @@ export async function upsertTemplate(
   return { id: row.id, version: row.version, created: true };
 }
 
+/**
+ * Claim IBANs for a template, first claim wins.
+ *
+ * This used to onConflictDoUpdate, silently reassigning an IBAN already held by
+ * another vendor. Payment-service-provider IBANs are shared by many merchants
+ * and OCR mis-reads happen, so the mapping flipped on every commit and
+ * resolveVendor then drove deterministic extraction with the wrong vendor's
+ * field anchors — with nothing logged (INVEX-011).
+ */
 async function linkIbans(db: DbOrTx, templateId: string, ibans: string[]): Promise<void> {
   for (const iban of ibans) {
     await db
       .insert(vendorTemplateIbans)
       .values({ iban, templateId })
-      .onConflictDoUpdate({ target: vendorTemplateIbans.iban, set: { templateId } });
+      .onConflictDoNothing({ target: vendorTemplateIbans.iban });
   }
 }
 
 export async function listTemplates(db: DbOrTx, limit: number): Promise<VendorTemplateRow[]> {
-  return db.select().from(vendorTemplates).orderBy(vendorTemplates.updatedAt).limit(limit);
+  // desc: a bare column defaults to ASC in drizzle, so this returned the OLDEST
+  // templates and never the ones just learned — the opposite of what the
+  // endpoint exists to show. Every other list endpoint is newest-first.
+  return db.select().from(vendorTemplates).orderBy(desc(vendorTemplates.updatedAt)).limit(limit);
 }
 
 export async function getTemplate(db: DbOrTx, id: string): Promise<VendorTemplateRow | null> {
