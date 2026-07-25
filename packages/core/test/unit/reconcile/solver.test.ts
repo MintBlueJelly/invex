@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { reconcile } from "../src/index";
-import type { CandidateInvoice, ExtractionEnvelope } from "../src/index";
+import { reconcile } from "../../../src/index";
+import type { CandidateInvoice, ExtractionEnvelope } from "../../../src/index";
 
 function env(invoice: CandidateInvoice): ExtractionEnvelope {
   return { invoice, fieldMeta: {} };

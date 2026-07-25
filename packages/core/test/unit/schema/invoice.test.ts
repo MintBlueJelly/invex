@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toVlmJsonSchema, zCanonicalInvoice } from "../src/index";
+import { toVlmJsonSchema, zCanonicalInvoice } from "../../../src/index";
 
 describe("canonical schema", () => {
   it("round-trips a valid invoice", () => {

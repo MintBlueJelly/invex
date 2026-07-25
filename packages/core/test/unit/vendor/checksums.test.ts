@@ -4,7 +4,7 @@ import {
   isValidIban,
   isValidUstIdNr,
   vendorNameHash,
-} from "../src/index";
+} from "../../../src/index";
 
 describe("USt-IdNr checksum (ISO 7064 MOD 11,10)", () => {
   it("accepts known-valid numbers", () => {

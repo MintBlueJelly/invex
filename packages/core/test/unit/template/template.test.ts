@@ -9,7 +9,7 @@ import {
   type PositionedLine,
   type PositionedTextDocument,
   type VendorTemplate,
-} from "../src/index";
+} from "../../../src/index";
 
 /**
  * Hand-built positioned document mirroring the standard fixture invoice —

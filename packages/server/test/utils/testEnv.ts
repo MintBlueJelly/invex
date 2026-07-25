@@ -1,4 +1,5 @@
 import { PGlite } from "@electric-sql/pglite";
+import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import { pino } from "pino";
@@ -9,12 +10,19 @@ import { buildApp } from "../../src/http/app";
 import { createMachine, type Machine, type StagePorts } from "../../src/pipeline/machine";
 import { buildRegistry } from "../../src/pipeline/registry";
 import type { DoclingPort, VlmPort } from "../../src/ports";
+import { unusedDocling, unusedVlm } from "./doubles";
 
 /**
  * In-process test environment: PGlite (real Postgres compiled to WASM) instead
- * of a container, so the FULL pipeline — worker loop, SKIP LOCKED claims,
- * migrations, event trace — verifies on machines without Docker.
+ * of a container, so the FULL pipeline — worker loop, claims, migrations, event
+ * trace — verifies on machines without Docker.
+ *
+ * Caveat worth knowing: PGlite is a SINGLE connection, so two "concurrent"
+ * transactions serialize. FOR UPDATE SKIP LOCKED and every lost-update race are
+ * therefore structurally untestable here — those live in the opt-in `pg` lane.
  */
+
+export { FakeDocling, RecordingVlm, unusedDocling, unusedVlm } from "./doubles";
 
 export async function createTestDb(): Promise<{ db: Db; close: () => Promise<void> }> {
   const pg = new PGlite();
@@ -23,41 +31,52 @@ export async function createTestDb(): Promise<{ db: Db; close: () => Promise<voi
   return { db: db as unknown as Db, close: () => pg.close() };
 }
 
-export function testConfig(overrides?: (cfg: AppConfig) => void): AppConfig {
+/** Every table, in FK-safe order. Used by truncateAll(). */
+const ALL_TABLES = [
+  "document_events",
+  "document_files",
+  "escalations",
+  "vendor_template_ibans",
+  "vendor_templates",
+  "documents",
+] as const;
+
+/**
+ * Wipe all rows without rebuilding PGlite. A fresh PGlite + migrate() costs
+ * ~300-500ms; for a component file with 20 tests that is 10s of pure setup.
+ */
+export async function truncateAll(db: Db): Promise<void> {
+  await db.execute(sql.raw(`TRUNCATE TABLE ${ALL_TABLES.join(", ")} RESTART IDENTITY CASCADE`));
+}
+
+/** Deep-merge just enough for nested config objects (no arrays in AppConfig). */
+function deepMerge<T>(base: T, patch: unknown): T {
+  if (patch === undefined || patch === null) return base;
+  if (typeof patch !== "object" || typeof base !== "object" || base === null) return patch as T;
+  const out = { ...(base as Record<string, unknown>) };
+  for (const [k, v] of Object.entries(patch as Record<string, unknown>)) {
+    out[k] = deepMerge(out[k], v);
+  }
+  return out as T;
+}
+
+type ConfigOverride =
+  /** Mutator form. */
+  | ((cfg: AppConfig) => void)
+  /** Declarative form: testConfig({ pipeline: { vlm: { enabled: true } } }). */
+  | DeepPartial<AppConfig>;
+
+type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K] };
+
+export function testConfig(overrides?: ConfigOverride): AppConfig {
   const cfg = loadConfig({});
   cfg.pipeline.worker.pollIntervalMs = 10;
-  overrides?.(cfg);
+  if (typeof overrides === "function") overrides(cfg);
+  else if (overrides) return deepMerge(cfg, overrides);
   return cfg;
 }
 
 export const silentLog = pino({ level: "silent" });
-
-export const unusedDocling: DoclingPort = {
-  convert() {
-    return Promise.reject(new Error("docling not expected in this test"));
-  },
-};
-
-/** Queue-based Docling fake: each convert() consumes the next enqueued response. */
-export class FakeDocling implements DoclingPort {
-  private queue: { doclingJson: unknown; markdown: string }[] = [];
-
-  enqueue(doclingJson: unknown, markdown = ""): void {
-    this.queue.push({ doclingJson, markdown });
-  }
-
-  convert(): Promise<{ doclingJson: unknown; markdown: string }> {
-    const next = this.queue.shift();
-    if (!next) return Promise.reject(new Error("FakeDocling queue is empty"));
-    return Promise.resolve(next);
-  }
-}
-
-export const unusedVlm: VlmPort = {
-  extractStructured() {
-    return Promise.reject(new Error("vlm not expected in this test"));
-  },
-};
 
 export interface TestEnv {
   db: Db;
@@ -68,12 +87,14 @@ export interface TestEnv {
   close: () => Promise<void>;
 }
 
-export async function createTestEnv(opts?: {
-  config?: (cfg: AppConfig) => void;
+export interface TestEnvOptions {
+  config?: ConfigOverride;
   docling?: DoclingPort;
   vlm?: VlmPort;
   registry?: (r: ReturnType<typeof buildRegistry>) => void;
-}): Promise<TestEnv> {
+}
+
+export async function createTestEnv(opts?: TestEnvOptions): Promise<TestEnv> {
   const { db, close } = await createTestDb();
   const config = testConfig(opts?.config);
   const ports: StagePorts = {
@@ -94,10 +115,42 @@ export async function createTestEnv(opts?: {
     machine,
     app,
     close: async () => {
+      await machine.stop();
       await app.close();
       await close();
     },
   };
+}
+
+/** Same environment, but actually listening — for the e2e lane and the CLI harness. */
+export async function createListeningTestEnv(
+  opts?: TestEnvOptions,
+): Promise<TestEnv & { baseUrl: string }> {
+  const env = await createTestEnv(opts);
+  await env.app.listen({ port: 0, host: "127.0.0.1" });
+  const addr = env.app.server.address();
+  const port = typeof addr === "object" && addr ? addr.port : 0;
+  return { ...env, baseUrl: `http://127.0.0.1:${port}` };
+}
+
+/**
+ * Insert a document directly in a chosen state. Half the component tests want a
+ * document at a given status, not a PDF pushed through four stages to get there.
+ */
+export async function seedDocument(
+  db: Db,
+  row: Partial<typeof schema.documents.$inferInsert> = {},
+): Promise<string> {
+  const [inserted] = await db
+    .insert(schema.documents)
+    .values({
+      filename: "seed.pdf",
+      contentHash: `seed-${Math.random().toString(36).slice(2)}`,
+      status: "received",
+      ...row,
+    })
+    .returning({ id: schema.documents.id });
+  return inserted!.id;
 }
 
 /** Minimal multipart/form-data body for fastify.inject. */

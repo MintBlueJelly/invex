@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseCiiToEnvelope, reconcile } from "@invex/core";
-import { computeInvoice, sampleSpec, serializeCii } from "../src/index";
+import { computeInvoice, sampleSpec, serializeCii } from "../../src/index";
 
 describe("CII round-trip (fixtures serializer ↔ core parser)", () => {
   it("serialize → parse → reconcile yields the spec's arithmetic truth", () => {

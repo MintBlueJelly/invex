@@ -11,8 +11,15 @@
   "scripts": {
     "build": "pnpm -r --sequential run typecheck",
     "typecheck": "pnpm -r --sequential run typecheck",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "vitest run --project unit --project prop --project component --project integration --project e2e",
+    "test:unit": "vitest run --project unit",
+    "test:prop": "vitest run --project prop",
+    "test:component": "vitest run --project component",
+    "test:int": "vitest run --project integration --project e2e",
+    "test:pg": "vitest run --project pg",
+    "test:cov": "vitest run --project unit --project prop --project component --project integration --project e2e --coverage",
+    "test:known-bugs": "INVEX_KNOWN_BUGS=strict vitest run --project unit --project component --project integration",
+    "test:watch": "vitest --project unit",
     "dev": "pnpm --filter @invex/server dev",
     "smoke": "pnpm --filter @invex/server smoke",
     "fixtures": "pnpm --filter @invex/fixtures generate",
@@ -20,6 +27,8 @@
   },
   "devDependencies": {
     "@types/node": "^26.1.0",
+    "@vitest/coverage-v8": "^4.1.10",
+    "fast-check": "^4.3.0",
     "tsx": "^4.23.0",
     "typescript": "^6.0.3",
     "vitest": "^4.1.10"

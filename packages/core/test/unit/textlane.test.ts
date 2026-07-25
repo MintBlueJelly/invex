@@ -8,7 +8,7 @@ import {
   type PositionedLine,
   type PositionedTextDocument,
   type TextGateOptions,
-} from "../src/index";
+} from "../../src/index";
 
 function line(
   text: string,

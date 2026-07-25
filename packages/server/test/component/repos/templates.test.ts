@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { VendorTemplate } from "@invex/core";
-import { createTestDb } from "../utils/testEnv";
-import type { Db } from "../../src/db/client";
-import { resolveVendor, upsertTemplate } from "../../src/db/repos/templates";
+import { createTestDb } from "../../utils/testEnv";
+import type { Db } from "../../../src/db/client";
+import { resolveVendor, upsertTemplate } from "../../../src/db/repos/templates";
 
 let db: Db;
 let close: () => Promise<void>;
