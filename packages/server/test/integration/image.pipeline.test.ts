@@ -1,14 +1,38 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { makeScannedPdf, sampleSpec } from "@invex/fixtures";
+import { createCanvas } from "@napi-rs/canvas";
+import { PDFDocument } from "pdf-lib";
+import {
+  goldenOcrDocling,
+  isSynthetic,
+  layoutInvoice,
+  loadGolden,
+  renderOcrDoclingJson,
+  type LiteralInvoiceDoc,
+  type PageLayout,
+} from "@invex/fixtures";
 import type { CanonicalInvoice, VendorTemplate } from "@invex/core";
 import { eq } from "drizzle-orm";
 import { vendorTemplates } from "../../src/db/schema";
 import { upsertTemplate } from "../../src/db/repos/templates";
 import { StubVlm } from "../../src/clients/vlm/stub";
 import { createTestEnv, FakeDocling, multipartBody, type TestEnv } from "../utils/testEnv";
-import { ocrInvoiceDoclingJson, ocrUnknownVendorDoclingJson } from "../utils/doclingFixtures";
+import { withInvoiceNumber } from "../utils/literalVariants";
 
-/** Template for the known scanned vendor (as human review / VLM would have induced it). */
+/**
+ * Path C (image/OCR lane) integration. de-standard-19 stands in for the
+ * "known ACME vendor" scans; the "unknown vendor" cases have no golden
+ * equivalent (goldens model realistic single-vendor invoices, not a second
+ * throwaway vendor purely for template-induction testing) and are built
+ * locally through the layout seam.
+ */
+
+const standard = loadGolden("de-standard-19");
+if (!isSynthetic(standard)) throw new Error("de-standard-19 golden must be synthetic");
+const standardDoc = standard.render.doc;
+const wantStandard = standard.expected.canonical!;
+
+/** Template for the known scanned vendor (as human review / VLM would have
+ * induced it) — labels match de-standard-19's ACTUAL printed totals block. */
 function acmeTemplate(): VendorTemplate {
   return {
     templateVersion: 1,
@@ -17,8 +41,8 @@ function acmeTemplate(): VendorTemplate {
     fields: {
       invoiceNumber: { label: "Rechnungs-Nr.", valuePattern: "R-\\d+-\\d+" },
       issueDate: { label: "Rechnungsdatum", valuePattern: "\\d{2}\\.\\d{2}\\.\\d{4}" },
-      "totals.net": { label: "Zwischensumme (netto)", valuePattern: "-?[\\d.,]+" },
-      "totals.tax": { label: "MwSt. 19%", valuePattern: "-?[\\d.,]+" },
+      "totals.net": { label: "Zwischensumme", valuePattern: "-?[\\d.,]+" },
+      "totals.tax": { label: "MwSt. 19 %", valuePattern: "-?[\\d.,]+" },
       "totals.gross": { label: "Gesamtbetrag", valuePattern: "-?[\\d.,]+" },
     },
     lineItemTable: {
@@ -27,6 +51,43 @@ function acmeTemplate(): VendorTemplate {
       descriptionContinuation: "rowsWithoutPosNumber",
     },
   };
+}
+
+/** An unknown scanned vendor (checksum-valid ids, simple totals) — no golden
+ * equivalent; this vendor only exists to exercise VLM-driven template
+ * induction on OCR output, distinct from the ACME golden scenario. */
+function unknownVendorDoc(): LiteralInvoiceDoc {
+  return {
+    locale: "de",
+    seller: {
+      nameText: "Muster Verlag GmbH",
+      addressLines: ["10115 Berlin"],
+      taxIdLine: "USt-IdNr.: DE136695976",
+    },
+    headingText: "Rechnung",
+    // Rechnungsdatum listed first: layoutInvoice aligns the heading with the
+    // FIRST header field on the same row, and OCR word-induction would then
+    // merge "Rechnung" into whichever label sits there. Only issueDate (not
+    // asserted below) absorbs that merge; invoiceNumber gets a clean row.
+    headerFields: [
+      { labelText: "Rechnungsdatum", valueText: "01.06.2026" },
+      { labelText: "Rechnungs-Nr.", valueText: "RG-77" },
+    ],
+    tableHeaders: ["Pos", "Bezeichnung", "Menge", "Einzelpreis", "Gesamt"],
+    tableColumns: ["position", "description", "quantity", "unitPrice", "lineTotal"],
+    lines: [
+      { posText: "1", descriptionText: "Beratung", quantityText: "1", unitPriceText: "100,00", lineTotalText: "100,00" },
+    ],
+    totalsBlock: [
+      { labelText: "Zwischensumme (netto)", valueText: "100,00" },
+      { labelText: "MwSt. 19%", valueText: "19,00" },
+      { labelText: "Gesamtbetrag", valueText: "119,00", bold: true },
+    ],
+  };
+}
+
+function ocrUnknownVendorDoclingJson(): unknown {
+  return renderOcrDoclingJson(layoutInvoice(unknownVendorDoc()));
 }
 
 function unknownVendorInvoice(): CanonicalInvoice {
@@ -48,11 +109,46 @@ function unknownVendorInvoice(): CanonicalInvoice {
   };
 }
 
+/**
+ * Rasterizes a page of positioned ops to a full-page PNG embedded in a PDF —
+ * zero extractable text, so triage genuinely routes it to `image` (see
+ * src/pdf/triage.ts: routing is decided purely by pdf.js text-char count).
+ * Mirrors fixtures' scannedPdf.ts, but draws from the shared PageLayout ops
+ * instead of re-deriving the invoice from computeInvoice/sampleSpec.
+ */
+async function rasterizePageToPdf(page: PageLayout): Promise<Uint8Array> {
+  const SCALE = 1240 / 595.276; // ~150dpi at A4 width, matches scannedPdf.ts
+  const w = Math.round(page.widthPt * SCALE);
+  const h = Math.round(page.heightPt * SCALE);
+  const canvas = createCanvas(w, h);
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = "#1a1a1a";
+  for (const op of page.ops) {
+    ctx.font = `${op.bold ? "bold " : ""}${Math.round(op.size * SCALE)}px sans-serif`;
+    ctx.fillText(op.text, op.x * SCALE, (op.yTop + op.size) * SCALE);
+  }
+  const png = canvas.toBuffer("image/png");
+  const doc = await PDFDocument.create();
+  const pdfPage = doc.addPage([page.widthPt, page.heightPt]);
+  const img = await doc.embedPng(png);
+  pdfPage.drawImage(img, { x: 0, y: 0, width: page.widthPt, height: page.heightPt });
+  return doc.save();
+}
+
+/** Content only needs to be unique per ingest (content-hash dedup) — the
+ * pipeline's docling response is always faked separately, so what is actually
+ * printed/rasterized here is never read as ground truth. */
+async function uniqueScannedPdf(tag: string): Promise<Uint8Array> {
+  const [page] = layoutInvoice(withInvoiceNumber(standardDoc, tag));
+  return rasterizePageToPdf(page!);
+}
+
 describe("Path C — image lane (VLM enabled)", () => {
   let env: TestEnv;
   let docling: FakeDocling;
   let vlm: StubVlm;
-  let n = 0;
 
   beforeAll(async () => {
     docling = new FakeDocling();
@@ -70,10 +166,9 @@ describe("Path C — image lane (VLM enabled)", () => {
     await env.close();
   });
 
-  async function ingestScan(invoiceNumber: string): Promise<string> {
-    n++;
-    const pdf = await makeScannedPdf(sampleSpec({ invoiceNumber }));
-    const { payload, headers } = multipartBody([{ filename: `scan${n}.pdf`, data: pdf }]);
+  async function ingestScan(tag: string): Promise<string> {
+    const pdf = await uniqueScannedPdf(tag);
+    const { payload, headers } = multipartBody([{ filename: `${tag}.pdf`, data: pdf }]);
     const res = await env.app.inject({ method: "POST", url: "/api/ingest", payload, headers });
     return (res.json() as { documentId: string }[])[0]!.documentId;
   }
@@ -89,7 +184,7 @@ describe("Path C — image lane (VLM enabled)", () => {
 
   it("known vendor: template on OCR output commits WITHOUT touching the VLM", async () => {
     await upsertTemplate(env.db, acmeTemplate(), "human_review");
-    docling.enqueue(ocrInvoiceDoclingJson());
+    docling.enqueue(goldenOcrDocling(standard));
 
     const id = await ingestScan("R-SCAN-1");
     await env.machine.drain();
@@ -98,10 +193,10 @@ describe("Path C — image lane (VLM enabled)", () => {
     expect(doc["route"]).toBe("image");
     expect(doc["status"]).toBe("committed");
     const result = doc["result"] as CanonicalInvoice;
-    expect(result.invoiceNumber).toBe("R-2026-0042"); // from the OCR text
-    expect(result.totals).toEqual({ net: "1148.70", tax: "218.25", gross: "1366.95" });
-    expect(result.lineItems).toHaveLength(3);
-    expect(result.lineItems[0]?.description).toBe("Aktenvernichter PS-500");
+    expect(result.invoiceNumber).toBe(wantStandard.invoiceNumber); // from the OCR text
+    expect(result.totals).toEqual(wantStandard.totals);
+    expect(result.lineItems).toHaveLength(wantStandard.lineItems.length);
+    expect(result.lineItems[0]?.description).toBe(wantStandard.lineItems[0]!.description);
 
     const events = await getEvents(id);
     expect(events.find((e) => e.event === "vendor_resolved")?.detail["matchedBy"]).toBe("ustIdNr");
@@ -156,7 +251,7 @@ describe("Path C — image lane (no VLM)", () => {
     const env2 = await createTestEnv({ docling });
     try {
       docling.enqueue(ocrUnknownVendorDoclingJson());
-      const pdf = await makeScannedPdf(sampleSpec({ invoiceNumber: "R-SCAN-4" }));
+      const pdf = await uniqueScannedPdf("R-SCAN-4");
       const { payload, headers } = multipartBody([{ filename: "s.pdf", data: pdf }]);
       const res = await env2.app.inject({ method: "POST", url: "/api/ingest", payload, headers });
       const id = (res.json() as { documentId: string }[])[0]!.documentId;

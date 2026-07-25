@@ -42,22 +42,14 @@ function tsFilesUnder(rel: string): string[] {
 }
 
 /**
- * Files still importing the legacy generator, pending migration to goldens.
+ * Files still importing the legacy generator.
  *
- * A RATCHET: this list may only shrink. A new file reaching for computeInvoice
- * fails the test below, so the debt cannot grow while nobody is looking. Delete
- * entries as each is retargeted at loadGolden(); when the list is empty, delete
- * the allowlist and the old generator with it.
+ * EMPTY — the migration is complete. Every test now takes its input from a
+ * golden scenario whose printed page and expected canonical invoice were
+ * authored independently. Keep this array here rather than deleting it: it is
+ * the ratchet that stops the old arrangement creeping back.
  */
-const LEGACY_GENERATOR_USERS = [
-  "packages/fixtures/test/unit/ciiRoundtrip.test.ts",
-  "packages/server/test/e2e/smoke.cli.test.ts",
-  "packages/server/test/integration/image.pipeline.test.ts",
-  "packages/server/test/integration/review.api.test.ts",
-  "packages/server/test/integration/text.pipeline.test.ts",
-  "packages/server/test/integration/vlm.pipeline.test.ts",
-  "packages/server/test/integration/zugferd.pipeline.test.ts",
-];
+const LEGACY_GENERATOR_USERS: string[] = [];
 
 /** Matches a real import, not a mention in a comment. */
 const IMPORTS_GENERATOR = /import\s+(?:type\s+)?\{[^}]*\b(?:computeInvoice|sampleSpec)\b[^}]*\}\s*from/;

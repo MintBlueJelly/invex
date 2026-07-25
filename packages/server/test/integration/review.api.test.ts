@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { makeTextInvoicePdf, sampleSpec } from "@invex/fixtures";
 import type { CanonicalInvoice } from "@invex/core";
 import { eq } from "drizzle-orm";
 import { escalations, vendorTemplates } from "../../src/db/schema";
 import { createTestEnv, FakeDocling, multipartBody, type TestEnv } from "../utils/testEnv";
-import { alienLabelsDoclingJson } from "../utils/doclingFixtures";
+import { uniqueTextPdf } from "../utils/textPdfVariant";
+import { alienVendorDoclingJson, alienVendorInvoice } from "../utils/alienVendorFixture";
 
 let env: TestEnv;
 let docling: FakeDocling;
@@ -14,8 +14,8 @@ beforeAll(async () => {
   docling = new FakeDocling();
   env = await createTestEnv({ docling }); // VLM off → alien doc → pending_review
 
-  docling.enqueue(alienLabelsDoclingJson());
-  const pdf = await makeTextInvoicePdf(sampleSpec({ invoiceNumber: "R-REVIEW-1" }));
+  docling.enqueue(alienVendorDoclingJson());
+  const pdf = await uniqueTextPdf("R-REVIEW-1");
   const { payload, headers } = multipartBody([{ filename: "r.pdf", data: pdf }]);
   const res = await env.app.inject({ method: "POST", url: "/api/ingest", payload, headers });
   pendingId = (res.json() as { documentId: string }[])[0]!.documentId;
@@ -25,28 +25,6 @@ beforeAll(async () => {
 afterAll(async () => {
   await env.close();
 });
-
-/** What the human reads off the PDF (the alien-label ACME invoice). */
-function correctedInvoice(): CanonicalInvoice {
-  return {
-    schemaVersion: 1,
-    invoiceNumber: "R-2026-0042",
-    issueDate: "2026-06-15",
-    dueDate: null,
-    currency: "EUR",
-    locale: "de-DE",
-    seller: { name: "ACME Bürotechnik GmbH", ustIdNr: "DE811907980", steuernummer: null, ibans: [], address: null },
-    buyer: null,
-    totals: { net: "1148.70", tax: "218.25", gross: "1366.95" },
-    vatBreakdown: [{ rate: 19, net: "1148.70", tax: "218.25" }],
-    lineItems: [
-      { position: 1, description: "Aktenvernichter PS-500", quantity: "2", unit: null, unitPrice: "199.50", taxRate: 19, lineTotal: "399.00" },
-      { position: 2, description: "Wartungsvertrag", quantity: "1", unit: null, unitPrice: "480.00", taxRate: 19, lineTotal: "480.00" },
-      { position: 3, description: "Toner-Set CMYK", quantity: "3", unit: null, unitPrice: "89.90", taxRate: 19, lineTotal: "269.70" },
-    ],
-    paymentTerms: null,
-  };
-}
 
 describe("human review API (briefing §7)", () => {
   it("lists pending documents with vendor guess and violation summary", async () => {
@@ -79,7 +57,7 @@ describe("human review API (briefing §7)", () => {
     const res = await env.app.inject({
       method: "PUT",
       url: `/api/review/${pendingId}`,
-      payload: correctedInvoice(),
+      payload: alienVendorInvoice(),
     });
     expect(res.statusCode).toBe(200);
     const body = res.json() as { status: string; templateId: string | null };
@@ -108,7 +86,7 @@ describe("human review API (briefing §7)", () => {
     const res = await env.app.inject({
       method: "PUT",
       url: `/api/review/${pendingId}`,
-      payload: correctedInvoice(),
+      payload: alienVendorInvoice(),
     });
     expect(res.statusCode).toBe(409);
   });

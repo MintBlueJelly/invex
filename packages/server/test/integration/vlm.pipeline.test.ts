@@ -1,44 +1,18 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { makeTextInvoicePdf, sampleSpec } from "@invex/fixtures";
+import { goldenPdf, loadGolden } from "@invex/fixtures";
 import type { CanonicalInvoice } from "@invex/core";
 import { eq } from "drizzle-orm";
 import { vendorTemplates } from "../../src/db/schema";
 import { StubVlm } from "../../src/clients/vlm/stub";
 import { rasterizePdf } from "../../src/pdf/rasterize";
 import { createTestEnv, FakeDocling, multipartBody, type TestEnv } from "../utils/testEnv";
-import { alienLabelsDoclingJson, doclingJson } from "../utils/doclingFixtures";
+import { uniqueTextPdf } from "../utils/textPdfVariant";
+import { alienVendorDoclingJson, alienVendorInvoice } from "../utils/alienVendorFixture";
+import { rawDoclingDocument } from "../utils/rawDoclingDocument";
 
 let env: TestEnv;
 let docling: FakeDocling;
 let vlm: StubVlm;
-
-/** The invoice the stub "reads" off the alien-label document (same arithmetic). */
-function vlmInvoice(): CanonicalInvoice {
-  return {
-    schemaVersion: 1,
-    invoiceNumber: "R-2026-0042",
-    issueDate: "2026-06-15",
-    dueDate: null,
-    currency: "EUR",
-    locale: "de-DE",
-    seller: {
-      name: "ACME Bürotechnik GmbH",
-      ustIdNr: "DE811907980",
-      steuernummer: null,
-      ibans: [],
-      address: null,
-    },
-    buyer: null,
-    totals: { net: "1148.70", tax: "218.25", gross: "1366.95" },
-    vatBreakdown: [{ rate: 19, net: "1148.70", tax: "218.25" }],
-    lineItems: [
-      { position: 1, description: "Aktenvernichter PS-500", quantity: "2", unit: null, unitPrice: "199.50", taxRate: 19, lineTotal: "399.00" },
-      { position: 2, description: "Wartungsvertrag", quantity: "1", unit: null, unitPrice: "480.00", taxRate: 19, lineTotal: "480.00" },
-      { position: 3, description: "Toner-Set CMYK", quantity: "3", unit: null, unitPrice: "89.90", taxRate: 19, lineTotal: "269.70" },
-    ],
-    paymentTerms: null,
-  };
-}
 
 beforeAll(async () => {
   docling = new FakeDocling();
@@ -59,7 +33,7 @@ afterAll(async () => {
 let n = 0;
 async function ingestTextPdf(): Promise<string> {
   n++;
-  const pdf = await makeTextInvoicePdf(sampleSpec({ invoiceNumber: `R-VLM-${n}` }));
+  const pdf = await uniqueTextPdf(`R-VLM-${n}`);
   const { payload, headers } = multipartBody([{ filename: `v${n}.pdf`, data: pdf }]);
   const res = await env.app.inject({ method: "POST", url: "/api/ingest", payload, headers });
   return (res.json() as { documentId: string }[])[0]!.documentId;
@@ -76,8 +50,8 @@ async function getEvents(id: string) {
 
 describe("VLM escalation (stub)", () => {
   it("rules-fail → VLM extract → committed + template learns the alien idiom", async () => {
-    docling.enqueue(alienLabelsDoclingJson());
-    vlm.enqueue({ isInvoice: true, invoice: vlmInvoice(), markdown: null });
+    docling.enqueue(alienVendorDoclingJson());
+    vlm.enqueue({ isInvoice: true, invoice: alienVendorInvoice(), markdown: null });
 
     const id = await ingestTextPdf();
     await env.machine.drain();
@@ -109,9 +83,11 @@ describe("VLM escalation (stub)", () => {
   });
 
   it("uncertain classification → VLM says non-invoice → Markdown export", async () => {
-    // Partial signals only: heading + tax id → uncertain band (score 5).
+    // Partial signals only: heading + tax id → uncertain band (score 5). No
+    // golden models a partial-signal document; built directly as positioned
+    // lines since it isn't a realistic invoice page.
     docling.enqueue(
-      doclingJson([
+      rawDoclingDocument([
         { text: "Rechnung", x: 380, yTop: 60, label: "section_header" },
         { text: "USt-IdNr.: DE136695976", x: 50, yTop: 92 },
         { text: "Hiermit bestätigen wir den Eingang Ihrer Unterlagen.", x: 50, yTop: 200 },
@@ -134,7 +110,7 @@ describe("VLM escalation (stub)", () => {
 
 describe("rasterizer", () => {
   it("renders PDF pages to PNG buffers", async () => {
-    const pdf = await makeTextInvoicePdf(sampleSpec());
+    const pdf = await goldenPdf(loadGolden("de-standard-19"));
     const images = await rasterizePdf(pdf, { dpi: 96, maxPages: 3 });
     expect(images.length).toBe(1);
     // PNG magic bytes

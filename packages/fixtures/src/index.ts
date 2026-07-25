@@ -1,5 +1,6 @@
 export { computeInvoice, sampleSpec, type ComputedInvoice, type FixtureLine, type InvoiceSpec } from "./spec";
 export { serializeCii } from "./ciiXml";
+export { serializeCiiFromCanonical, type CiiDefects } from "./ciiFromCanonical";
 export {
   defaultLabels,
   deDate,

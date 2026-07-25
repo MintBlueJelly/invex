@@ -1,18 +1,53 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
-  computeInvoice,
+  isSynthetic,
+  loadGolden,
   makeMalformedZugferdPdf,
   makeScannedPdf,
   makeTextInvoicePdf,
   makeZugferdPdf,
-  sampleSpec,
+  type InvoiceSpec,
 } from "@invex/fixtures";
 import { createTestEnv, multipartBody, type TestEnv } from "../utils/testEnv";
 
 /**
  * Full-pipeline integration (no external services): ingest via HTTP, real
  * worker loop over PGlite, assertions on status trajectories via the trace.
+ *
+ * There is no golden renderer for a ZUGfERD/Factur-X PDF (no CII-XML seam in
+ * goldens.ts yet), so this file keeps generating real ZUGfERD/text/scanned
+ * PDFs via the fixtures package — but the EXPECTED totals below come from
+ * de-standard-19's independently-authored canonical, not from computeInvoice.
+ * `specWith()` only reshapes that same truth into the InvoiceSpec shape the
+ * PDF/XML generators need.
  */
+
+const standard = loadGolden("de-standard-19");
+if (!isSynthetic(standard)) throw new Error("de-standard-19 golden must be synthetic");
+const canonical = standard.expected.canonical!;
+
+function specWith(invoiceNumber: string): InvoiceSpec {
+  return {
+    invoiceNumber,
+    issueDate: canonical.issueDate,
+    dueDate: canonical.dueDate ?? undefined,
+    currency: canonical.currency,
+    seller: {
+      name: canonical.seller.name,
+      ustIdNr: canonical.seller.ustIdNr ?? undefined,
+      iban: canonical.seller.ibans[0],
+      street: canonical.seller.address?.street ?? undefined,
+      postalCode: canonical.seller.address?.postalCode ?? undefined,
+      city: canonical.seller.address?.city ?? undefined,
+    },
+    lines: canonical.lineItems.map((l) => ({
+      description: l.description,
+      quantity: l.quantity ?? undefined,
+      unitPrice: l.unitPrice ?? undefined,
+      taxRate: l.taxRate ?? undefined,
+    })),
+  };
+}
 
 let env: TestEnv;
 
@@ -50,10 +85,9 @@ async function getTrace(id: string): Promise<{ event: string; detail: Record<str
 
 describe("triage routing", () => {
   it("routes zugferd / text / image fixtures to their lanes with reasons", async () => {
-    const spec = sampleSpec({ invoiceNumber: "R-ROUTE-1" });
-    const zug = await ingest("zugferd.pdf", await makeZugferdPdf(spec));
-    const txt = await ingest("text.pdf", await makeTextInvoicePdf(sampleSpec({ invoiceNumber: "R-ROUTE-2" })));
-    const img = await ingest("scan.pdf", await makeScannedPdf(sampleSpec({ invoiceNumber: "R-ROUTE-3" })));
+    const zug = await ingest("zugferd.pdf", await makeZugferdPdf(specWith("R-ROUTE-1")));
+    const txt = await ingest("text.pdf", await makeTextInvoicePdf(specWith("R-ROUTE-2")));
+    const img = await ingest("scan.pdf", await makeScannedPdf(specWith("R-ROUTE-3")));
 
     await env.machine.drain();
 
@@ -79,8 +113,7 @@ describe("triage routing", () => {
 
 describe("Path A — ZUGfERD lane", () => {
   it("parses embedded CII, reconciles through the shared solver, and commits", async () => {
-    const spec = sampleSpec({ invoiceNumber: "R-ZUG-OK" });
-    const expected = computeInvoice(spec);
+    const spec = specWith("R-ZUG-OK");
     const id = await ingest("ok.pdf", await makeZugferdPdf(spec));
     await env.machine.drain();
 
@@ -94,11 +127,11 @@ describe("Path A — ZUGfERD lane", () => {
       lineItems: { description: string; taxRate: number | null }[];
     };
     expect(result.invoiceNumber).toBe("R-ZUG-OK");
-    expect(result.totals).toEqual(expected.totals);
+    expect(result.totals).toEqual(canonical.totals);
     expect(result.seller.ustIdNr).toBe(spec.seller.ustIdNr);
     expect(result.seller.ibans).toEqual([spec.seller.iban]);
-    expect(result.lineItems).toHaveLength(3);
-    expect(result.vatBreakdown).toHaveLength(1);
+    expect(result.lineItems).toHaveLength(canonical.lineItems.length);
+    expect(result.vatBreakdown).toHaveLength(canonical.vatBreakdown.length);
 
     const events = (await getTrace(id)).map((e) => e.event);
     expect(events).toEqual(
@@ -107,10 +140,7 @@ describe("Path A — ZUGfERD lane", () => {
   });
 
   it("falls through to the text lane on malformed XML — never hard-errors (§2)", async () => {
-    const id = await ingest(
-      "broken.pdf",
-      await makeMalformedZugferdPdf(sampleSpec({ invoiceNumber: "R-ZUG-BROKEN" })),
-    );
+    const id = await ingest("broken.pdf", await makeMalformedZugferdPdf(specWith("R-ZUG-BROKEN")));
     await env.machine.drain();
 
     const doc = await getDoc(id);
@@ -129,7 +159,7 @@ describe("Path A — ZUGfERD lane", () => {
   });
 
   it("deduplicates identical re-ingests by content hash", async () => {
-    const pdf = await makeZugferdPdf(sampleSpec({ invoiceNumber: "R-DEDUP" }));
+    const pdf = await makeZugferdPdf(specWith("R-DEDUP"));
     const first = await ingest("a.pdf", pdf);
     const { payload, headers } = multipartBody([{ filename: "a-again.pdf", data: pdf }]);
     const res = await env.app.inject({ method: "POST", url: "/api/ingest", payload, headers });

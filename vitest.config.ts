@@ -98,15 +98,14 @@ export default defineConfig({
       //   Phase F  91.15 / 88.13 / 92.40 / 74.35
       //   Phase 1  92.31 / 89.82 / 93.13 / 77.34
       //   Phase 1b 92.65 / 90.23 / 93.13 / 79.30
-      //   Phase 2' 93.94 / 91.16 / 93.68 / 81.32  (scope narrowed to core+server;
-      //             the small dip is new smoke-harness code, not lost coverage)
+      //   Phase 2' 94.37 / 91.69 / 93.73 / 82.12  (scope narrowed to core+server)
       //
       // Read these numbers carefully: high LINE coverage does not mean the code
       // is verified. The pre-existing integration tests executed most of the
       // pipeline while asserting on very little of it — which is exactly how
       // eleven defects survived at 89% line coverage. Branch coverage is the
       // more honest signal, and it is the one that moved most.
-      thresholds: { lines: 93, statements: 91, functions: 93, branches: 81 },
+      thresholds: { lines: 94, statements: 91, functions: 93, branches: 82 },
     },
   },
 });

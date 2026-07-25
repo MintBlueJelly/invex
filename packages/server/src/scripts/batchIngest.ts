@@ -27,9 +27,23 @@ interface Expectation {
 }
 
 /** Field-level diff, so a mismatch says WHICH field rather than "not equal". */
+/**
+ * Money and quantity are decimal STRINGS and are deliberately not zero-padded
+ * (API.md: `"199.5"` is possible), so "199.50" and "199.5" are the same amount
+ * spelled two ways. Compare by value — this harness checks extraction, not
+ * formatting, and a diff that fires on trailing zeros trains people to ignore it.
+ */
+const NUMERIC = /^-?\d+(\.\d+)?$/;
+function sameNumber(a: unknown, b: unknown): boolean {
+  return (
+    typeof a === "string" && typeof b === "string" && NUMERIC.test(a) && NUMERIC.test(b) && Number(a) === Number(b)
+  );
+}
+
 export function diffCanonical(want: unknown, got: unknown, path = ""): string[] {
   if (want === null || typeof want !== "object") {
-    return Object.is(want, got) ? [] : [`${path || "<root>"}: expected ${JSON.stringify(want)}, got ${JSON.stringify(got)}`];
+    if (Object.is(want, got) || sameNumber(want, got)) return [];
+    return [`${path || "<root>"}: expected ${JSON.stringify(want)}, got ${JSON.stringify(got)}`];
   }
   if (Array.isArray(want)) {
     if (!Array.isArray(got)) return [`${path}: expected an array, got ${JSON.stringify(got)}`];
