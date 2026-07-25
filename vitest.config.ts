@@ -99,13 +99,14 @@ export default defineConfig({
       //   Phase 1  92.31 / 89.82 / 93.13 / 77.34
       //   Phase 1b 92.65 / 90.23 / 93.13 / 79.30
       //   Phase 2' 94.37 / 91.69 / 93.73 / 82.12  (scope narrowed to core+server)
+      //   Phase 4' 96.26 / 93.52 / 95.82 / 83.90
       //
       // Read these numbers carefully: high LINE coverage does not mean the code
       // is verified. The pre-existing integration tests executed most of the
       // pipeline while asserting on very little of it — which is exactly how
       // eleven defects survived at 89% line coverage. Branch coverage is the
       // more honest signal, and it is the one that moved most.
-      thresholds: { lines: 94, statements: 91, functions: 93, branches: 82 },
+      thresholds: { lines: 96, statements: 93, functions: 95, branches: 83 },
     },
   },
 });
