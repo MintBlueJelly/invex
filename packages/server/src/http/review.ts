@@ -5,6 +5,7 @@ import {
   type PositionedTextDocument,
 } from "@invex/core";
 import type { Db } from "../db/client";
+import { UUID_RE } from "./params";
 import {
   emitEvent,
   getDocument,
@@ -42,6 +43,7 @@ export function registerReviewRoutes(app: FastifyInstance, db: Db): void {
   });
 
   app.get<{ Params: { id: string } }>("/api/review/:id", async (req, reply) => {
+    if (!UUID_RE.test(req.params.id)) return reply.code(400).send({ error: "invalid document id" });
     const doc = await getDocument(db, req.params.id);
     if (!doc) return reply.code(404).send({ error: "not found" });
     if (doc.status !== "pending_review") {
@@ -60,6 +62,7 @@ export function registerReviewRoutes(app: FastifyInstance, db: Db): void {
   });
 
   app.put<{ Params: { id: string } }>("/api/review/:id", async (req, reply) => {
+    if (!UUID_RE.test(req.params.id)) return reply.code(400).send({ error: "invalid document id" });
     const doc = await getDocument(db, req.params.id);
     if (!doc) return reply.code(404).send({ error: "not found" });
     if (doc.status !== "pending_review") {

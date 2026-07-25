@@ -17,6 +17,7 @@ import type { DocumentRow } from "../db/repos/documents";
 import { listEscalations } from "../db/repos/escalations";
 import { getTemplate, listTemplates } from "../db/repos/templates";
 import type { DocumentStatus } from "../db/schema";
+import { UUID_RE, zEscalationQuery, zLimitQuery } from "./params";
 import { registerReviewRoutes } from "./review";
 import { sql } from "drizzle-orm";
 
@@ -116,12 +117,14 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   });
 
   app.get<{ Params: { id: string } }>("/api/documents/:id", async (req, reply) => {
+    if (!UUID_RE.test(req.params.id)) return reply.code(400).send({ error: "invalid document id" });
     const doc = await getDocument(db, req.params.id);
     if (!doc) return reply.code(404).send({ error: "not found" });
     return toDetail(doc);
   });
 
   app.get<{ Params: { id: string } }>("/api/documents/:id/pdf", async (req, reply) => {
+    if (!UUID_RE.test(req.params.id)) return reply.code(400).send({ error: "invalid document id" });
     const pdf = await getPdf(db, req.params.id);
     if (!pdf) return reply.code(404).send({ error: "not found" });
     return reply
@@ -131,6 +134,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   });
 
   app.get<{ Params: { id: string } }>("/api/documents/:id/markdown", async (req, reply) => {
+    if (!UUID_RE.test(req.params.id)) return reply.code(400).send({ error: "invalid document id" });
     const doc = await getDocument(db, req.params.id);
     if (!doc) return reply.code(404).send({ error: "not found" });
     if (doc.markdown === null) return reply.code(404).send({ error: "document has no markdown export" });
@@ -143,6 +147,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   /** The full path a document took through the pipeline (+ children if segmented). */
   app.get<{ Params: { id: string } }>("/api/documents/:id/trace", async (req, reply) => {
+    if (!UUID_RE.test(req.params.id)) return reply.code(400).send({ error: "invalid document id" });
     const doc = await getDocument(db, req.params.id);
     if (!doc) return reply.code(404).send({ error: "not found" });
     const events = await getTrace(db, req.params.id);
@@ -159,9 +164,10 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   registerReviewRoutes(app, db);
 
-  app.get("/api/templates", async (req) => {
-    const limit = Number((req.query as { limit?: string }).limit ?? 100);
-    const rows = await listTemplates(db, Math.min(Math.max(limit, 1), 500));
+  app.get("/api/templates", async (req, reply) => {
+    const q = zLimitQuery.safeParse(req.query);
+    if (!q.success) return reply.code(400).send({ error: "invalid limit" });
+    const rows = await listTemplates(db, q.data.limit);
     return rows.map((t) => ({
       id: t.id,
       ustIdNr: t.ustIdNr,
@@ -175,17 +181,19 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   });
 
   app.get<{ Params: { id: string } }>("/api/templates/:id", async (req, reply) => {
+    if (!UUID_RE.test(req.params.id)) return reply.code(400).send({ error: "invalid template id" });
     const row = await getTemplate(db, req.params.id);
     if (!row) return reply.code(404).send({ error: "not found" });
     return row;
   });
 
   /** Escalation log (briefing §8) — the data that drives lexicon/weight tuning. */
-  app.get("/api/escalations", async (req) => {
-    const q = req.query as { documentId?: string; limit?: string };
+  app.get("/api/escalations", async (req, reply) => {
+    const q = zEscalationQuery.safeParse(req.query);
+    if (!q.success) return reply.code(400).send({ error: "invalid documentId or limit" });
     return listEscalations(db, {
-      ...(q.documentId ? { documentId: q.documentId } : {}),
-      limit: Math.min(Math.max(Number(q.limit ?? 100), 1), 500),
+      ...(q.data.documentId ? { documentId: q.data.documentId } : {}),
+      limit: q.data.limit,
     });
   });
 
