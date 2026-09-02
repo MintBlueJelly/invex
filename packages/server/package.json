@@ -19,7 +19,7 @@
     "@invex/core": "workspace:*",
     "@napi-rs/canvas": "^1.0.2",
     "drizzle-orm": "^0.45.2",
-    "fastify": "^5.10.0",
+    "fastify": "^5.12.1",
     "pdfjs-dist": "^6.1.200",
     "pino": "^10.3.1",
     "postgres": "^3.4.9",
