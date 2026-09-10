@@ -203,15 +203,22 @@ Lists documents, newest first.
 | Param | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `status` | enum | — | one of the 9 statuses; anything else is a 400 |
+| `documentType` | enum | — | `invoice` \| `creditNote` \| `orderConfirmation` \| `deliveryNote` \| `quote` |
+| `arithmeticVerified` | `true` \| `false` | — | did the document's own numbers corroborate each other |
 | `limit` | integer | `50` | 1–500 |
 
-There is no offset or cursor — `limit` is the only control.
+Filters combine with AND. There is no offset or cursor — `limit` is the only control.
+
+`?status=committed&arithmeticVerified=true` is the query worth knowing: it returns the documents that
+committed **and** whose arithmetic was actually checked, excluding those that committed because there
+was nothing to check (see below).
 
 **Response** `200` — array of [`DocumentSummary`](#document-projections):
 
 ```json
 [{ "id": "8bfc8c58-b354-41ed-93ff-55f1acc21ded", "parentId": null,
    "filename": "invoice-3.pdf", "status": "committed", "route": "text",
+   "documentType": "invoice", "arithmeticVerified": true,
    "segmentPages": null, "error": null, "attempts": 0,
    "createdAt": "2026-07-25T09:16:42.761Z", "updatedAt": "2026-07-25T09:16:42.776Z" }]
 ```
@@ -242,10 +249,10 @@ Returns everything known about one document — the primary polling and result-r
   "contentHash": "6e632aa0c80798fca0ef83587e12a997c03fa195add6b17f1e83754522c8d298",
   "classifier": { "band": "invoice", "score": 12, "features": { "F1_headingKeyword": 1, … } },
   "candidate": { "invoice": { … }, "fieldMeta": {
-      "issueDate": { "source": "rules", "confidence": 0.65, "rawText": "15.06.2026",
+      "documentDate": { "source": "rules", "confidence": 0.65, "rawText": "15.06.2026",
                      "anchor": { "page": 1, "bbox": [0.638, 0.123, 0.878, 0.137] } },
       "totals.net": { "source": "derived", "confidence": 0.45 } } },
-  "result": { "schemaVersion": 1, "invoiceNumber": "R-2026-0042",
+  "result": { "schemaVersion": 2, "documentType": "invoice", "documentNumber": "R-2026-0042",
               "totals": { "net": "1148.70", "tax": "218.25", "gross": "1366.95" }, … },
   "repairs": [ { "rule": "R_NET_FROM_LINES", "path": "totals.net", "to": "1148.70" } ],
   "violations": [],
@@ -366,8 +373,8 @@ Returns one review task: the candidate extraction, why it failed, and where to f
   "candidate": { "invoice": { "seller": { "name": "ACME Bürotechnik GmbH",
                                           "ustIdNr": "DE811907980", "ibans": [], … } },
                  "fieldMeta": { "seller.ustIdNr": { "source": "rules", "confidence": 0.9 } } },
-  "violations": [ { "constraint": "REQUIRED_MISSING", "paths": ["invoiceNumber"],
-                    "detail": "required field invoiceNumber was not extracted" } ],
+  "violations": [ { "constraint": "REQUIRED_MISSING", "paths": ["documentNumber"],
+                    "detail": "required field documentNumber was not extracted" } ],
   "repairs": [],
   "classifier": { "band": "invoice", "score": 7, "features": { … } },
   "pdfUrl": "/api/documents/e3b1c8c5-…/pdf" }
@@ -418,8 +425,8 @@ The 400 `issues` entries are `"<path>: <message>"` strings:
 
 ```json
 { "error": "invalid canonical invoice",
-  "issues": ["invoiceNumber: Too small: expected string to have >=1 characters",
-             "issueDate: Invalid input: expected string, received undefined",
+  "issues": ["documentNumber: Too small: expected string to have >=1 characters",
+             "documentDate: Invalid input: expected string, received undefined",
              "totals.net: Invalid string: must match pattern /^-?\\d{1,12}(\\.\\d{1,2})?$/",
              "lineItems: Too small: expected array to have >=1 items"] }
 ```
@@ -529,8 +536,8 @@ Returns the escalation log — the data that drives lexicon and classifier-weigh
 [{ "id": "df5dadb8-5c8f-4ad0-9f3f-ac4009ec1576",
    "documentId": "b62b560a-adc6-4e4c-a3b0-e956b63ee7cf",
    "stage": "vlm_to_review",
-   "failedConstraints": [ { "constraint": "REQUIRED_MISSING", "paths": ["invoiceNumber"],
-                            "detail": "required field invoiceNumber was not extracted" } ],
+   "failedConstraints": [ { "constraint": "REQUIRED_MISSING", "paths": ["documentNumber"],
+                            "detail": "required field documentNumber was not extracted" } ],
    "failedRules": null,
    "classifierFeatures": { "band": "invoice", "score": 7,
                            "features": { "F1_headingKeyword": 1, "F3_taxIdPresent": 1, … } },
@@ -696,18 +703,52 @@ below means the value may be `null`, not that the key may be omitted.
 
 | Field | Type | Nullable |
 | --- | --- | --- |
-| `schemaVersion` | `1` (literal) | no |
-| `invoiceNumber` | string, non-empty | no |
-| `issueDate` | ISO date | no |
+| `schemaVersion` | `2` (literal) | no |
+| `documentType` | `invoice` \| `creditNote` \| `orderConfirmation` \| `deliveryNote` \| `quote` | no |
+| `documentNumber` | string, non-empty | no |
+| `documentDate` | ISO date | no |
 | `dueDate` | ISO date | **yes** |
 | `currency` | string, exactly 3 chars | no |
 | `locale` | string | **yes** |
 | `seller` | object, below | no |
 | `buyer` | object, below | **yes** |
-| `totals` | `{net, tax, gross}`, all money strings | no |
-| `vatBreakdown` | array, **min 1** | no |
+| `totals` | `{net, tax, gross}`, all money strings | **yes** — see below |
+| `vatBreakdown` | array; **min 1 except where `totals` is null** | no |
 | `lineItems` | array, **min 1** | no |
 | `paymentTerms` | string | **yes** |
+
+**v2 renamed `invoiceNumber` → `documentNumber` and `issueDate` → `documentDate`**, because the same
+field carries an Auftragsbestätigungs-Nr. or a Lieferschein-Nr. Rows written before the migration were
+backfilled, so `schemaVersion` is `2` throughout; nothing serves a v1 shape.
+
+### `arithmeticVerified`
+
+Present on every document projection. It answers *did this document's own numbers corroborate each
+other*, judged on the **extracted** values before any repair — a constraint satisfied by a value the
+solver itself derived is circular and does not count.
+
+Read it together with the `totalFailure` flag on the `reconciled` trace event; the two are not
+complements, and there are three states:
+
+| `arithmeticVerified` | `totalFailure` | Meaning |
+| --- | --- | --- |
+| `true` | `false` | the numbers check out |
+| `false` | `true` | the numbers contradict each other |
+| `false` | `false` | **there were no numbers** |
+
+The third row is why the field exists. A Lieferschein that prints no prices reaches `committed` like
+any invoice, but nothing about its arithmetic was ever checked — because there was none. Without this
+flag `committed` conflates the two, and no consumer can tell them apart.
+
+`null` means the document has not been reconciled yet, **or** it was reconciled before this field
+existed — pre-existing rows were deliberately not backfilled, because whether a constraint held
+pre-repair is not recoverable after the fact.
+
+**`totals` is null only for a class that need not carry amounts.** In practice that is a
+`deliveryNote` that prints no prices — it commits with `totals: null`, `vatBreakdown: []` and its real
+line items. For every other class, and for a delivery note that *does* print prices, `totals` and at
+least one VAT entry are required exactly as before. Consumers that assumed `totals` was always present
+must handle the null.
 
 `seller` — `name` (string, non-empty, **not** nullable) · `ustIdNr` · `steuernummer` ·
 `ibans` (string array, may be empty) · `address`.
@@ -730,7 +771,7 @@ below means the value may be `null`, not that the key may be omitted.
 A complete valid body:
 
 ```json
-{ "schemaVersion": 1, "invoiceNumber": "R-2026-0042", "issueDate": "2026-06-15",
+{ "schemaVersion": 2, "documentType": "invoice", "documentNumber": "R-2026-0042", "documentDate": "2026-06-15",
   "dueDate": null, "currency": "EUR", "locale": null,
   "seller": { "name": "ACME Bürotechnik GmbH", "ustIdNr": "DE811907980",
               "steuernummer": null, "ibans": [], "address": null },
@@ -753,7 +794,7 @@ A complete valid body:
 
 ```json
 { "invoice": { "…partial canonical invoice…": null },
-  "fieldMeta": { "issueDate": { "source": "rules", "confidence": 0.65, "rawText": "15.06.2026",
+  "fieldMeta": { "documentDate": { "source": "rules", "confidence": 0.65, "rawText": "15.06.2026",
                                 "anchor": { "page": 1, "bbox": [0.638,0.123,0.878,0.137] } } } }
 ```
 
@@ -778,6 +819,13 @@ incomplete. `fieldMeta` is keyed by dotted path (`totals.gross`, `lineItems.2`),
 
 Bands: `invoice` · `non_invoice` · `uncertain`. Features are 0/1. Weights and band thresholds are
 **provisional** and configured in `config/classifier.json` (see README).
+
+The blob also carries `kind` (the detected → documentType, or `null`) and `kindEvidence`
+(`{matchedTerm, rawLine, anchor, competing}`). **The band and the kind are different axes.** The band
+says how confident the weighted score is; the kind says which document it is. They can disagree
+legitimately: a priceless Lieferschein scores low — most of the features measure amounts — while its
+heading identifies it unambiguously. A recognised kind is what keeps such a document out of the Markdown
+export; it does not bypass the `uncertain` → VLM escalation.
 
 ### Trace events
 
@@ -861,7 +909,7 @@ Ids appearing in `repairs[].rule`; each repair also reports the `path` it wrote 
 | `templateVersion` | `1` | |
 | `vendorIds` | object | `ustIdNr`, `steuernummer`, `ibans`, `nameHash`, `displayName` — all optional |
 | `locale` | object | `decimal` (`,` or `.`), `dateFormats` |
-| `fields` | object | keyed by `invoiceNumber` \| `issueDate` \| `dueDate` \| `totals.net` \| `totals.tax` \| `totals.gross`; each `{label?, valuePattern?, region?}` |
+| `fields` | object | keyed by `invoiceNumber` \| `issueDate` \| `dueDate` \| `totals.net` \| `totals.tax` \| `totals.gross`; each `{label?, valuePattern?, region?}`. These keys are **template vocabulary and deliberately did not follow the v2 rename** — `invoiceNumber` here maps to canonical `documentNumber`, `issueDate` to `documentDate`. Persisted templates therefore keep working untouched. |
 | `lineItemTable` | object? | `headerSignature`, `columns` (key → **column index**), `descriptionContinuation` (`rowsWithoutPosNumber` \| `indentedRows` \| `none`) |
 
 `region` is `{page, bbox}` with `page` 1-based (`-1` = last page) and a normalized top-left-origin

@@ -26,6 +26,18 @@ checking an invoice against *itself*.
 Because the list is short and known, it doubles as evidence: a rate outside it is suspicious, and a
 missing rate can sometimes be deduced from the amounts alone. → [repair](#b--how-invex-works)
 
+**document class** — Which of the five business documents InvEx extracts a file is:
+**Rechnung** (invoice), **Auftragsbestätigung** (order confirmation), **Gutschrift** (credit note),
+**Lieferschein** (delivery note) or **Angebot** (quote). All five share the invoice's structure — seller,
+line-item table, VAT breakdown, totals — which is why one extraction path and one arithmetic check serve
+all of them. Carried in the output as → documentType. ⚠ Not the same thing as the classifier's → band;
+see [§E](#e--words-that-mean-something-specific-here).
+
+**Gutschrift** — Two different documents sharing one word. Usually a **credit note** (money going back to
+the buyer, often printed negative); but *Gutschriftverfahren* is German **self-billing**, where the buyer
+issues the document and the amounts are positive. A heading cannot tell them apart, which is why InvEx
+deliberately has no "credit notes must be negative" rule.
+
 **IBAN** — A bank account number. InvEx cares about it less as a payment detail than as a *vendor
 fingerprint*: it carries a checksum, so a mis-read one fails arithmetically rather than silently
 matching the wrong supplier. It is the third-choice identifier because it changes when a vendor switches
@@ -73,6 +85,23 @@ input — nothing has to be *read* off the page at all. → [Path A](#b--how-inv
 **band** — The classifier's verdict bucket: `invoice`, `non_invoice`, or `uncertain`. Not a confidence
 percentage — a bucket the score falls into. ⚠ "Band" also means something else entirely in the OCR code;
 see [§E](#e--words-that-mean-something-specific-here).
+
+**documentType** — The field carrying the → document class in the canonical output, one of
+`invoice` / `creditNote` / `orderConfirmation` / `deliveryNote` / `quote`. Read from the
+heading on Paths B and C, and from the XML type code (BT-3) on Path A. Defaults to `invoice` when
+nothing recognises the document, which is what makes the class additive rather than a new failure mode.
+
+**arithmeticVerified** — Whether a document's own numbers *corroborated each other* — not whether it
+was accepted. Judged before any → repair, because a constraint satisfied by a value the solver itself
+derived proves nothing. It is the missing third state next to → violation: a document can commit with
+the numbers checked, commit with **no numbers to check** (a priceless → Lieferschein), or fail because
+the numbers contradict. Without it, `committed` says the same thing for the first two.
+
+**profile** — The per-class rule for *which parts of the canonical shape a document must carry*. Only one
+class differs: a **Lieferschein need not carry any amounts**, because it normally prints what was
+delivered and no prices. Note what a profile is not — it never switches arithmetic off. The → constraint
+solver runs the same checks for every class; they simply have nothing to say about numbers that are not
+there, so a delivery note that *does* print prices is checked exactly like an invoice.
 
 **canonical invoice** — The single fixed JSON shape every path must produce, whatever route the document
 took. A ZUGfERD invoice, a scanned one and one read by the AI all come out identical in structure, which
@@ -313,10 +342,11 @@ real local server so that timeouts and connection resets are genuine rather than
 | **template** | a document you fill in and print | a learned **reading map** of one supplier's layout: where their invoice number sits, which column holds the quantity |
 | **escalation** | a support ticket, or a failure | moving a document **up the cost ladder** (CPU → GPU → human). Explicitly not a failure: it is also how the system learns |
 | **repair** | fixing a wrong number | **filling in a number the invoice never printed** but which follows from the others. It never overwrites a printed value |
-| **committed** | a git commit | a document **accepted and stored as a finished invoice** — the successful end state |
+| **committed** | a git commit | a document **accepted and stored as finished** — the successful end state. ⚠ Does *not* by itself mean the arithmetic was checked: a delivery note with no prices commits having had nothing to check. → arithmeticVerified is the field that separates them |
 | **induction** | electrical, or logical, induction | **learning** a vendor template from an invoice that was read successfully |
 | **provenance** | art or supply-chain history | a per-field record of **where each value came from** — read off the page, applied from a template, or reconstructed by the solver |
 | **over-determined** | over-specified, a criticism | a **useful property**: the invoice prints more numbers than needed, so they can check each other |
+| **band vs. documentType** | two names for the same verdict | two **different axes**: the band is *how sure* the score is, documentType is *which document it is*. A Lieferschein can be confidently classified and still score low, because the score mostly measures amounts |
 
 ### Words used for two or three different things
 

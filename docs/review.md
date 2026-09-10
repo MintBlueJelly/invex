@@ -241,9 +241,9 @@ and the 10-connection pool is unused. A small intra-process concurrency knob wou
 without touching the deployment topology — and the claim logic is already correct for it.
 
 **4. Dead and misleading configuration.**
-`config/prompts/classify.md` is **never loaded** — `vlmEscalate.ts` unconditionally reads
-`invoice-extract.md`, yet the response schema demands `isInvoice` and `markdown`, which that prompt never
-mentions. A non-invoice sent to the VLM gets an extraction-only instruction. `templates.minFieldConfidence`
+~~`config/prompts/classify.md` is **never loaded**~~ — *fixed with the multi-document-type work: the
+dead prompt is deleted, and `invoice-extract.md` now instructs the model on the `documentType` /
+`document` / `markdown` contract it is actually asked for.* `templates.minFieldConfidence`
 is validated and read by no code, reading like an implemented quality gate that does not exist. And
 `vlm.requestTimeoutMs` also governs the **docling** client, so `deployment.md`'s timeout ladder understates
 what that knob controls.

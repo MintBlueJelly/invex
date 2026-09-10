@@ -1,8 +1,15 @@
-# InvEx — Deterministic-First Invoice Extraction
+# InvEx — Deterministic-First Document Extraction
 
 TypeScript implementation of the InvEx document-ingestion pipeline ([briefing](./docs/briefing.md)).
-PDFs go in; **canonical invoice JSON** (header, VAT breakdown, full line items) or **Markdown**
-(non-invoices) comes out.
+PDFs go in; **canonical JSON** (header, VAT breakdown, full line items) or **Markdown**
+(everything else) comes out.
+
+Five German business-document classes share that one path and one arithmetic check, tagged in the
+output as `documentType`: **Rechnung** (invoice), **Auftragsbestätigung** (order confirmation),
+**Gutschrift** (credit note), **Lieferschein** (delivery note) and **Angebot** (quote). They are
+structurally the same document — seller, line-item table, VAT breakdown, totals — so the only thing that
+varies by class is which of those parts is *required*: a Lieferschein normally prints no prices and
+commits with none (`config`-free, see `packages/core/src/reconcile/profiles.ts`).
 
 **Design center:** maximize the share of invoices handled by the deterministic CPU path.
 The VLM is an escalation, human review the last resort — and **every escalation creates or
@@ -32,7 +39,7 @@ inconsistencies escalate.
 
 | Package             | Contents                                                                                                                                                                     |
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/core`     | Pure domain, zero I/O: canonical Zod schema, constraint solver, classifier, rule engine + lexicon, template apply/induce (text + OCR), CII parser, Docling mapper, checksums |
+| `packages/core`     | Pure domain, zero I/O: canonical Zod schema, constraint solver + per-class profiles, classifier + document-class detection, rule engine + lexicon, template apply/induce (text + OCR), CII parser, Docling mapper, checksums |
 | `packages/server`   | Fastify API, Drizzle/Postgres persistence, pipeline worker (`FOR UPDATE SKIP LOCKED`, queue-swappable), Docling/VLM clients, pdf.js triage + rasterizer                      |
 | `packages/fixtures` | Synthetic PDF generators (text/ZUGfERD/scanned/garbage) + `expected.json` manifest                                                                                           |
 
@@ -107,7 +114,9 @@ feed it as a batch consumer, what holds state, and a troubleshooting playbook.
 
 - `config/pipeline.json` — tolerances, VAT closed set, text-gate thresholds, triage, VLM/worker knobs
 - `config/classifier.json` — feature weights + band thresholds (**provisional**; every document's
-  feature vector is persisted, so calibrate from real data and adjust — briefing §11)
+  feature vector is persisted, so calibrate from real data and adjust — briefing §11). Note the band
+  (`invoice`/`non_invoice`/`uncertain`) is a *confidence* bucket and is a different axis from
+  `documentType`, the document class read off the heading.
 - `config/prompts/` — per-document-type VLM system prompts
 - `.env` — endpoints (`DATABASE_URL`, `DOCLING_URL`, `VLM_URL`, `VLM_MODEL`, `VLM_ENABLED`, `VLM_API_KEY`, `VLM_SCHEMA_MODE`)
 
