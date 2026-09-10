@@ -1,0 +1,130 @@
+{
+  "id": "de-lieferschein-priceless",
+  "title": "Lieferschein with no prices at all: commits with null totals and an empty VAT breakdown",
+  "reviewed": true,
+  "authoredOn": "2026-09-10",
+  "render": {
+    "doc": {
+      "locale": "de",
+      "seller": {
+        "nameText": "Nordlicht Maschinenbau GmbH",
+        "addressLines": [
+          "Hafenstraße 47",
+          "24103 Kiel"
+        ],
+        "taxIdLine": "USt-IdNr.: DE136695976"
+      },
+      "buyerLines": [
+        "Werkzeughandel Süd GmbH",
+        "Gewerbering 8",
+        "86156 Augsburg"
+      ],
+      "headingText": "Lieferschein",
+      "headerFields": [
+        {
+          "labelText": "Lieferschein-Nr.",
+          "valueText": "LS-2026-0311"
+        },
+        {
+          "labelText": "Lieferdatum",
+          "valueText": "18.09.2026"
+        }
+      ],
+      "tableHeaders": [
+        "Pos",
+        "Bezeichnung",
+        "Menge",
+        "Einheit"
+      ],
+      "tableColumns": [
+        "position",
+        "description",
+        "quantity",
+        "unit"
+      ],
+      "lines": [
+        {
+          "posText": "1",
+          "descriptionText": "Hydraulikzylinder HZ-90",
+          "quantityText": "4",
+          "unitText": "Stk"
+        },
+        {
+          "posText": "2",
+          "descriptionText": "Dichtungssatz für HZ-90",
+          "quantityText": "4",
+          "unitText": "Stk"
+        }
+      ],
+      "totalsBlock": [],
+      "noteLines": [
+        "Ware geprüft und vollständig übernommen.",
+        "Die Berechnung erfolgt separat."
+      ]
+    }
+  },
+  "expected": {
+    "canonical": {
+      "schemaVersion": 2,
+      "documentType": "deliveryNote",
+      "documentNumber": "LS-2026-0311",
+      "documentDate": "2026-09-18",
+      "dueDate": null,
+      "currency": "EUR",
+      "locale": null,
+      "seller": {
+        "name": "Nordlicht Maschinenbau GmbH",
+        "ustIdNr": "DE136695976",
+        "steuernummer": null,
+        "ibans": [],
+        "address": {
+          "street": "Hafenstraße 47",
+          "postalCode": "24103",
+          "city": "Kiel",
+          "countryCode": null
+        }
+      },
+      "buyer": null,
+      "totals": null,
+      "vatBreakdown": [],
+      "lineItems": [
+        {
+          "position": 1,
+          "description": "Hydraulikzylinder HZ-90",
+          "quantity": "4",
+          "unit": "Stk",
+          "unitPrice": null,
+          "taxRate": null,
+          "lineTotal": null
+        },
+        {
+          "position": 2,
+          "description": "Dichtungssatz für HZ-90",
+          "quantity": "4",
+          "unit": "Stk",
+          "unitPrice": null,
+          "taxRate": null,
+          "lineTotal": null
+        }
+      ],
+      "paymentTerms": null
+    },
+    "smoke": {
+      "route": "text",
+      "terminalStatus": "committed",
+      "hasEvents": [
+        "text_gate",
+        "classified",
+        "reconciled",
+        "committed"
+      ],
+      "notEvents": [
+        "vlm_called",
+        "stage_error",
+        "markdown_exported",
+        "template_induced"
+      ],
+      "arithmeticVerified": false
+    }
+  }
+}

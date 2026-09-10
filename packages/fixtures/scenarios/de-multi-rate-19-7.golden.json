@@ -81,9 +81,10 @@
   },
   "expected": {
     "canonical": {
-      "schemaVersion": 1,
-      "invoiceNumber": "K-2026-118",
-      "issueDate": "2026-05-02",
+      "schemaVersion": 2,
+      "documentType": "invoice",
+      "documentNumber": "K-2026-118",
+      "documentDate": "2026-05-02",
       "dueDate": null,
       "currency": "EUR",
       "locale": null,
@@ -144,7 +145,8 @@
       "hasEvents": [
         "classified",
         "reconciled"
-      ]
+      ],
+      "arithmeticVerified": true
     }
   }
 }

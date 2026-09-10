@@ -69,9 +69,10 @@
   },
   "expected": {
     "canonical": {
-      "schemaVersion": 1,
-      "invoiceNumber": "NI-2026-77",
-      "issueDate": "2026-03-20",
+      "schemaVersion": 2,
+      "documentType": "invoice",
+      "documentNumber": "NI-2026-77",
+      "documentDate": "2026-03-20",
       "dueDate": null,
       "currency": "EUR",
       "locale": null,
@@ -124,7 +125,8 @@
     },
     "smoke": {
       "route": "text",
-      "terminalStatus": "committed"
+      "terminalStatus": "committed",
+      "arithmeticVerified": true
     }
   },
   "knownBug": "INVEX-047"

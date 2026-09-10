@@ -1,0 +1,162 @@
+{
+  "id": "de-gutschrift-negative",
+  "title": "Gutschrift printed with negative amounts: credit notes reconcile without a sign rule",
+  "reviewed": true,
+  "authoredOn": "2026-09-10",
+  "render": {
+    "doc": {
+      "locale": "de",
+      "seller": {
+        "nameText": "Nordlicht Maschinenbau GmbH",
+        "addressLines": [
+          "Hafenstraße 47",
+          "24103 Kiel"
+        ],
+        "taxIdLine": "USt-IdNr.: DE136695976",
+        "bankLines": [
+          "Bankverbindung: IBAN DE02120300000000202051"
+        ]
+      },
+      "buyerLines": [
+        "Werkzeughandel Süd GmbH",
+        "Gewerbering 8",
+        "86156 Augsburg"
+      ],
+      "headingText": "Gutschrift",
+      "headerFields": [
+        {
+          "labelText": "Gutschrift-Nr.",
+          "valueText": "GS-2026-0018"
+        },
+        {
+          "labelText": "Belegdatum",
+          "valueText": "22.09.2026"
+        }
+      ],
+      "tableHeaders": [
+        "Pos",
+        "Bezeichnung",
+        "Menge",
+        "Einzelpreis",
+        "Gesamt"
+      ],
+      "tableColumns": [
+        "position",
+        "description",
+        "quantity",
+        "unitPrice",
+        "lineTotal"
+      ],
+      "lines": [
+        {
+          "posText": "1",
+          "descriptionText": "Rückgabe Dichtungssatz für HZ-90",
+          "quantityText": "2",
+          "unitPriceText": "-37,25",
+          "lineTotalText": "-74,50"
+        },
+        {
+          "posText": "2",
+          "descriptionText": "Preisnachlass Montage",
+          "quantityText": "1",
+          "unitPriceText": "-125,50",
+          "lineTotalText": "-125,50"
+        }
+      ],
+      "totalsBlock": [
+        {
+          "labelText": "Zwischensumme",
+          "valueText": "-200,00"
+        },
+        {
+          "labelText": "MwSt. 19 %",
+          "valueText": "-38,00"
+        },
+        {
+          "labelText": "Gesamtbetrag",
+          "valueText": "-238,00",
+          "bold": true
+        }
+      ],
+      "noteLines": [
+        "Der Betrag wird Ihrem Konto gutgeschrieben."
+      ]
+    }
+  },
+  "expected": {
+    "canonical": {
+      "schemaVersion": 2,
+      "documentType": "creditNote",
+      "documentNumber": "GS-2026-0018",
+      "documentDate": "2026-09-22",
+      "dueDate": null,
+      "currency": "EUR",
+      "locale": null,
+      "seller": {
+        "name": "Nordlicht Maschinenbau GmbH",
+        "ustIdNr": "DE136695976",
+        "steuernummer": null,
+        "ibans": [
+          "DE02120300000000202051"
+        ],
+        "address": {
+          "street": "Hafenstraße 47",
+          "postalCode": "24103",
+          "city": "Kiel",
+          "countryCode": null
+        }
+      },
+      "buyer": null,
+      "totals": {
+        "net": "-200.00",
+        "tax": "-38.00",
+        "gross": "-238.00"
+      },
+      "vatBreakdown": [
+        {
+          "rate": 19,
+          "net": "-200.00",
+          "tax": "-38.00"
+        }
+      ],
+      "lineItems": [
+        {
+          "position": 1,
+          "description": "Rückgabe Dichtungssatz für HZ-90",
+          "quantity": "2",
+          "unit": null,
+          "unitPrice": "-37.25",
+          "taxRate": 19,
+          "lineTotal": "-74.50"
+        },
+        {
+          "position": 2,
+          "description": "Preisnachlass Montage",
+          "quantity": "1",
+          "unit": null,
+          "unitPrice": "-125.50",
+          "taxRate": 19,
+          "lineTotal": "-125.50"
+        }
+      ],
+      "paymentTerms": null
+    },
+    "smoke": {
+      "route": "text",
+      "terminalStatus": "committed",
+      "hasEvents": [
+        "text_gate",
+        "classified",
+        "reconciled",
+        "committed"
+      ],
+      "notEvents": [
+        "vlm_called",
+        "stage_error",
+        "markdown_exported",
+        "template_induced"
+      ],
+      "arithmeticVerified": true
+    }
+  }
+}

@@ -17,8 +17,8 @@ import type { ExtractionEnvelope } from "../../../src/schema/candidate";
 function envelope(rate: number, tax: string): ExtractionEnvelope {
   return {
     invoice: {
-      invoiceNumber: "R-2026-0042",
-      issueDate: "2026-06-15",
+      documentNumber: "R-2026-0042",
+      documentDate: "2026-06-15",
       currency: "EUR",
       seller: { name: "Kleinunternehmer Meier" },
       totals: { net: "1000.00", tax, gross: (1000 + Number(tax)).toFixed(2) },
@@ -55,8 +55,8 @@ describe("R_VAT_SYNTH — completing a partial VAT entry", () => {
     // apportion, and the document should still escalate rather than guess.
     const r = reconcile({
       invoice: {
-        invoiceNumber: "R-1",
-        issueDate: "2026-06-15",
+        documentNumber: "R-1",
+        documentDate: "2026-06-15",
         currency: "EUR",
         seller: { name: "X" },
         vatBreakdown: [{ rate: 0, net: null, tax: "0.00" }],

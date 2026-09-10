@@ -1,4 +1,4 @@
-import { zCanonicalInvoice, type CanonicalInvoice } from "@invex/core";
+import { zCanonicalInvoice, type CanonicalInvoice, type Totals } from "@invex/core";
 import Decimal from "decimal.js";
 import { describe, expect, it } from "vitest";
 import { loadGoldens, type Golden } from "../../src/goldens";
@@ -29,6 +29,21 @@ const goldens = loadGoldens();
 const invoiceGoldens = goldens.filter((g): g is Golden & { expected: { canonical: CanonicalInvoice } } =>
   g.expected.canonical !== null,
 );
+/**
+ * Goldens that carry header totals. A class that need not print amounts (a
+ * Lieferschein) commits with totals null and an empty VAT breakdown, so the
+ * header-arithmetic checks below have nothing to say about it.
+ *
+ * Relaxing a guard is how an oracle quietly stops being one, so this relaxation
+ * is paired with pricelessGoldens: a golden may only opt out of the header
+ * checks by genuinely printing no money at all.
+ */
+const pricedGoldens = invoiceGoldens.filter(
+  (g): g is typeof g & { expected: { canonical: CanonicalInvoice & { totals: Totals } } } =>
+    g.expected.canonical.totals !== null,
+);
+const pricelessGoldens = invoiceGoldens.filter((g) => g.expected.canonical.totals === null);
+
 /** Only a synthetic scenario has a printed page to compare the expectation against. */
 const printedGoldens = invoiceGoldens.filter(
   (g): g is typeof g & { render: { doc: LiteralInvoiceDoc } } => g.render?.doc !== undefined,
@@ -82,7 +97,7 @@ describe("committed canonical invoices are internally sound", () => {
     }
   });
 
-  it.each(invoiceGoldens.map((g) => [g.id, g] as const))("%s: VAT rows sum to the totals", (_id, g) => {
+  it.each(pricedGoldens.map((g) => [g.id, g] as const))("%s: VAT rows sum to the totals", (_id, g) => {
     const inv = g.expected.canonical;
     const net = inv.vatBreakdown.reduce((s, v) => s.plus(v.net), new Decimal(0));
     const tax = inv.vatBreakdown.reduce((s, v) => s.plus(v.tax), new Decimal(0));
@@ -90,10 +105,30 @@ describe("committed canonical invoices are internally sound", () => {
     expect(near(tax, D(inv.totals.tax), "0.01"), `vat tax ${tax} != totals.tax ${inv.totals.tax}`).toBe(true);
   });
 
-  it.each(invoiceGoldens.map((g) => [g.id, g] as const))("%s: net + tax = gross", (_id, g) => {
+  it.each(pricedGoldens.map((g) => [g.id, g] as const))("%s: net + tax = gross", (_id, g) => {
     const t = g.expected.canonical.totals;
     expect(near(D(t.net).plus(t.tax), D(t.gross), "0.005"), `${t.net} + ${t.tax} != ${t.gross}`).toBe(true);
   });
+
+  /**
+   * The compensating guard for the pricedGoldens relaxation.
+   *
+   * Without it, giving any golden a null totals would silently exempt it from
+   * every header check above — so a priced document with a typo'd total could
+   * be "fixed" by deleting its totals. A golden may skip those checks only by
+   * printing no money anywhere: no line totals, no unit prices, no VAT rows.
+   */
+  it.each(pricelessGoldens.map((g) => [g.id, g] as const))(
+    "%s: null totals means genuinely no amounts anywhere",
+    (_id, g) => {
+      const inv = g.expected.canonical;
+      expect(inv.vatBreakdown).toEqual([]);
+      for (const l of inv.lineItems) {
+        expect(l.lineTotal, `${l.description} has a lineTotal but no totals`).toBeNull();
+        expect(l.unitPrice, `${l.description} has a unitPrice but no totals`).toBeNull();
+      }
+    },
+  );
 });
 
 describe("the printed page and the expectation agree", () => {
@@ -119,7 +154,8 @@ describe("the printed page and the expectation agree", () => {
 
     const inv = g.expected.canonical;
     const canonical = new Set<string>();
-    for (const s of [inv.totals.net, inv.totals.tax, inv.totals.gross]) canonical.add(D(s).toFixed(2));
+    const t = inv.totals;
+    if (t) for (const s of [t.net, t.tax, t.gross]) canonical.add(D(s).toFixed(2));
     for (const v of inv.vatBreakdown) for (const s of [v.net, v.tax]) canonical.add(D(s).toFixed(2));
     for (const l of inv.lineItems) {
       for (const s of [l.unitPrice, l.lineTotal]) if (s !== null) canonical.add(D(s).toFixed(2));
@@ -131,7 +167,7 @@ describe("the printed page and the expectation agree", () => {
 
   it.each(printedGoldens.map((g) => [g.id, g] as const))("%s: header fields are printed as the canonical states", (_id, g) => {
     const printedValues = g.render.doc.headerFields.map((f) => f.valueText);
-    expect(printedValues).toContain(g.expected.canonical.invoiceNumber);
+    expect(printedValues).toContain(g.expected.canonical.documentNumber);
   });
 
   it.each(printedGoldens.map((g) => [g.id, g] as const))("%s: the seller name is printed verbatim", (_id, g) => {

@@ -1,6 +1,6 @@
 /**
  * Compact German+English wordlist for the text-quality gate. NOT a full top-5k
- * frequency list: common function/business words plus invoice-domain vocabulary,
+ * frequency list: common function/business words plus business-document vocabulary,
  * matched with compound-aware substring logic (German compounds hit via their
  * parts: "Wartungsvertrag" → "vertrag"). Garbage OCR output scores ≈ 0 against
  * this; real invoice/letter text scores well above the gate threshold.
@@ -28,6 +28,22 @@ export const GATE_WORDS: readonly string[] = [
   "skonto", "steuer", "strasse", "stuck", "stueck", "summe", "technik", "termin", "toner",
   "verbindung", "vernichter", "versand", "vertrag", "wartung", "wert", "zahl", "zahlbar",
   "zahlung", "zeit", "zeitraum", "zwischen",
+  // Vocabulary of the non-invoice document classes (order confirmation,
+  // delivery note, credit note, quote). Without these the gate reads a
+  // perfectly clean Lieferschein as OCR garbage — it scored 0.45 against an
+  // invoice-only list — and reroutes it to the image lane, paying for OCR to
+  // re-read text that was never broken. Compound-aware matching means the stems
+  // cover the inflections ("Auftragsbestätigungs-Nr." hits "auftrag" + "bestatigung").
+  "annahme", "aufmass", "auftrags", "avis", "bestatigung", "baestatigung",
+  "bestaetigung", "einheit", "erfolgt", "gutschrift", "korrektur", "kosten",
+  "lieferschein", "lieferant", "montage", "nachlass", "offerte", "packliste",
+  "packzettel", "pauschal", "rucksendung", "ruecksendung", "ruckgabe", "rueckgabe",
+  "schein", "storno", "ubernommen", "uebernommen", "vollstandig", "vollstaendig",
+  "voranschlag", "vorgang", "ware", "waren", "werk", "zettel",
+  // Generic industrial/goods nouns that appear in line-item descriptions on
+  // every class but hardly ever on an invoice's header.
+  "anlage", "bau", "dichtung", "hydraulik", "maschinen", "material", "prufung",
+  "pruefung", "satz", "teile", "werkzeug", "zylinder",
   // German cities (letterheads)
   "berlin", "hamburg", "munchen", "muenchen", "koln", "koeln", "frankfurt", "stuttgart",
   "dusseldorf", "duesseldorf", "leipzig", "dortmund", "essen", "bremen", "dresden",

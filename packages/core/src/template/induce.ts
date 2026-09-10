@@ -112,9 +112,9 @@ function detectLocale(invoice: CanonicalInvoice, doc: PositionedTextDocument): {
   // evidence. Only a rendering the other locale cannot produce may decide it.
   let decimal: DecimalSeparator = ",";
   const probes = [
-    invoice.totals.gross,
-    invoice.totals.net,
-    invoice.totals.tax,
+    invoice.totals?.gross ?? null,
+    invoice.totals?.net ?? null,
+    invoice.totals?.tax ?? null,
     ...invoice.vatBreakdown.flatMap((v) => [v.net, v.tax]),
     ...invoice.lineItems.flatMap((l) => [l.lineTotal, l.unitPrice]),
   ];
@@ -133,7 +133,7 @@ function detectLocale(invoice: CanonicalInvoice, doc: PositionedTextDocument): {
 
   const dateFormats: string[] = [];
   for (const fmt of DATE_FORMAT_CANDIDATES) {
-    const rendered = renderIsoDate(invoice.issueDate, fmt);
+    const rendered = renderIsoDate(invoice.documentDate, fmt);
     if (rendered && findValue(doc, [rendered])) dateFormats.push(fmt);
   }
   if (dateFormats.length === 0) dateFormats.push("dd.MM.yyyy", "yyyy-MM-dd");
@@ -149,9 +149,9 @@ function induceHeaderFields(
 ): Partial<Record<TemplateFieldKey, FieldDescriptor>> {
   const fields: Partial<Record<TemplateFieldKey, FieldDescriptor>> = {};
 
-  const invNum = findValue(doc, [invoice.invoiceNumber]);
+  const invNum = findValue(doc, [invoice.documentNumber]);
   if (invNum) {
-    fields["invoiceNumber"] = descriptorFor(invNum, doc, generalizePattern(invoice.invoiceNumber));
+    fields["invoiceNumber"] = descriptorFor(invNum, doc, generalizePattern(invoice.documentNumber));
   }
 
   const dateField = (key: "issueDate" | "dueDate", iso: string | null) => {
@@ -166,10 +166,11 @@ function induceHeaderFields(
       }
     }
   };
-  dateField("issueDate", invoice.issueDate);
+  dateField("issueDate", invoice.documentDate);
   dateField("dueDate", invoice.dueDate);
 
-  const amountField = (key: TemplateFieldKey, value: string) => {
+  const amountField = (key: TemplateFieldKey, value: string | null) => {
+    if (value === null) return;
     const hit = findValue(doc, amountVariants(value, locale.decimal));
     if (!hit) return;
     // Round-trip guard: the anchored text must parse back to the value under the
@@ -180,9 +181,12 @@ function induceHeaderFields(
     if (parseAmount(hit.matched, locale.decimal) !== value) return;
     fields[key] = descriptorFor(hit, doc, AMOUNT_PATTERN);
   };
-  amountField("totals.gross", invoice.totals.gross);
-  amountField("totals.net", invoice.totals.net);
-  amountField("totals.tax", invoice.totals.tax);
+  // A class that prints no amounts (a priceless Lieferschein) contributes no
+  // amount anchors — the template still captures its identity and line-item
+  // table, which is what makes it useful.
+  amountField("totals.gross", invoice.totals?.gross ?? null);
+  amountField("totals.net", invoice.totals?.net ?? null);
+  amountField("totals.tax", invoice.totals?.tax ?? null);
 
   return fields;
 }

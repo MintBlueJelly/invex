@@ -104,11 +104,17 @@ export function registerReviewRoutes(app: FastifyInstance, db: Db): void {
     await db.transaction(async (tx) => {
       await updateDocument(tx, doc.id, {
         status: "committed",
+        documentType: invoice.documentType,
+        // Taken from the same check that gated this commit, so a
+        // human-reviewed document carries the flag on the same terms as an
+        // automatically committed one.
+        arithmeticVerified: check.arithmeticVerified,
         result: invoice,
         violations: [],
       });
       await emitEvent(tx, doc.id, "review_committed", {
-        gross: invoice.totals.gross,
+        gross: invoice.totals?.gross ?? null,
+        arithmeticVerified: check.arithmeticVerified,
         lineCount: invoice.lineItems.length,
       });
       // §7: corrections flow to output AND template create/update.

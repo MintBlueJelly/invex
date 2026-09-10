@@ -1,5 +1,6 @@
 import Decimal from "decimal.js";
 import type { CandidateInvoice } from "../schema/candidate";
+import type { DocumentType } from "../schema/documentType";
 
 /**
  * Internal mutable working model the solver operates on: every numeric field is
@@ -23,8 +24,10 @@ export interface WorkingVatEntry {
 }
 
 export interface Working {
-  invoiceNumber: string | null;
-  issueDate: string | null;
+  /** Defaulted to "invoice" when extraction could not determine the class. */
+  documentType: DocumentType;
+  documentNumber: string | null;
+  documentDate: string | null;
   dueDate: string | null;
   currency: string | null;
   locale: string | null;
@@ -78,8 +81,9 @@ export function toWorking(c: CandidateInvoice): Working {
   const sellerAddr = c.seller?.address ?? null;
   const buyerAddr = c.buyer?.address ?? null;
   return {
-    invoiceNumber: cleanStr(c.invoiceNumber),
-    issueDate: cleanStr(c.issueDate),
+    documentType: c.documentType ?? "invoice",
+    documentNumber: cleanStr(c.documentNumber),
+    documentDate: cleanStr(c.documentDate),
     dueDate: cleanStr(c.dueDate),
     currency: cleanStr(c.currency),
     locale: cleanStr(c.locale),

@@ -3,6 +3,7 @@ import multipart from "@fastify/multipart";
 import { createHash } from "node:crypto";
 import type { Logger } from "pino";
 import { z } from "zod";
+import { zDocumentType } from "@invex/core";
 import type { AppConfig } from "../config";
 import type { MachineHealth } from "../pipeline/machine";
 import type { Db } from "../db/client";
@@ -49,6 +50,12 @@ const DOCUMENT_STATUSES: DocumentStatus[] = [
 
 const zListQuery = z.object({
   status: z.enum(DOCUMENT_STATUSES as [DocumentStatus, ...DocumentStatus[]]).optional(),
+  documentType: zDocumentType.optional(),
+  /** The point of the flag: "committed AND actually checked" is one query. */
+  arithmeticVerified: z
+    .enum(["true", "false"])
+    .transform((v) => v === "true")
+    .optional(),
   limit: z.coerce.number().int().min(1).max(500).default(50),
 });
 
@@ -60,6 +67,14 @@ function toSummary(doc: DocumentRow) {
     filename: doc.filename,
     status: doc.status,
     route: doc.route,
+    /** Which document class this is — invoice, orderConfirmation, ... (null until classified). */
+    documentType: doc.documentType,
+    /**
+     * Did the document's own numbers corroborate each other? Null until
+     * reconciled; false on a committed document means there was nothing to
+     * check, not that a check failed.
+     */
+    arithmeticVerified: doc.arithmeticVerified,
     segmentPages: doc.segmentPages,
     error: doc.error,
     attempts: doc.attempts,
@@ -148,7 +163,10 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     if (doc.markdown === null) return reply.code(404).send({ error: "document has no markdown export" });
     return {
       documentId: doc.id,
+      // classification is the classifier BAND and keeps its three documented
+      // values; documentType is the separate class axis, sibling not override.
       classification: (doc.classifier as { band?: string } | null)?.band ?? null,
+      documentType: doc.documentType,
       markdown: doc.markdown,
     };
   });

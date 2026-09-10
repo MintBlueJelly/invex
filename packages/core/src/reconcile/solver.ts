@@ -2,6 +2,7 @@ import Decimal from "decimal.js";
 import type { ExtractionEnvelope, FieldMeta } from "../schema/candidate";
 import type { CanonicalInvoice } from "../schema/invoice";
 import { zCanonicalInvoice } from "../schema/invoice";
+import { profileFor } from "./profiles";
 import { evaluateAll, type Tolerances } from "./constraints";
 import { repairPass, unresolvedViolations, type RepairContext } from "./repairs";
 import {
@@ -40,8 +41,12 @@ export function reconcile(
   const preArithmetic = evaluateAll(toWorking(envelope.invoice), tol, opts.vatRates).filter(
     (c) => c.id !== "C5_VAT_CLOSED_SET",
   );
-  const totalFailure =
-    preArithmetic.some((c) => c.evaluable) && !preArithmetic.some((c) => c.evaluable && c.holds);
+  const corroborated = preArithmetic.some((c) => c.evaluable && c.holds);
+  const totalFailure = preArithmetic.some((c) => c.evaluable) && !corroborated;
+  // Same pre-repair evidence, read the other way round: did the document's own
+  // numbers actually check out? False both here and in totalFailure means there
+  // was no arithmetic to do — see the note on ReconciliationResult.
+  const arithmeticVerified = corroborated;
 
   // Bounded fix-point: rules only fill nulls, so each pass strictly reduces gaps.
   for (let pass = 0; pass < opts.maxRepairPasses; pass++) {
@@ -57,7 +62,15 @@ export function reconcile(
   const outEnvelope = writeBack(envelope, w, ctx);
 
   if (violations.length > 0) {
-    return { status: "failed", invoice: null, envelope: outEnvelope, repairs: ctx.repairs, violations, totalFailure };
+    return {
+      status: "failed",
+      invoice: null,
+      envelope: outEnvelope,
+      repairs: ctx.repairs,
+      violations,
+      totalFailure,
+      arithmeticVerified,
+    };
   }
 
   const candidate = toCanonical(w, opts);
@@ -76,6 +89,7 @@ export function reconcile(
         },
       ],
       totalFailure,
+      arithmeticVerified,
     };
   }
 
@@ -86,14 +100,24 @@ export function reconcile(
     repairs: ctx.repairs,
     violations: [],
     totalFailure: false,
+    arithmeticVerified,
   };
 }
 
+/**
+ * Which fields a document must carry to commit, by class (reconcile/profiles.ts).
+ *
+ * Identity is required of every class — a document nobody can name, date or
+ * attribute is not extractable whatever it is. Amounts are not: a Lieferschein
+ * normally prints none, and rejecting it for that would be rejecting it for
+ * being what it is.
+ */
 function requiredFieldViolations(w: Working): ConstraintViolation[] {
   const out: ConstraintViolation[] = [];
+  const profile = profileFor(w.documentType);
   const required: [string, unknown][] = [
-    ["invoiceNumber", w.invoiceNumber],
-    ["issueDate", w.issueDate],
+    ["documentNumber", w.documentNumber],
+    ["documentDate", w.documentDate],
     ["seller.name", w.seller.name],
   ];
   for (const [path, value] of required) {
@@ -101,14 +125,14 @@ function requiredFieldViolations(w: Working): ConstraintViolation[] {
       out.push({ constraint: "REQUIRED_MISSING", paths: [path], detail: `required field ${path} was not extracted` });
     }
   }
-  if (w.net === null || w.tax === null || w.gross === null) {
+  if (profile.requireTotals && (w.net === null || w.tax === null || w.gross === null)) {
     out.push({
       constraint: "TOTALS_INCOMPLETE",
       paths: ["totals"],
       detail: "totals could not be completed from any combination of extracted amounts",
     });
   }
-  if (w.vat.length === 0) {
+  if (profile.requireVat && w.vat.length === 0) {
     out.push({
       constraint: "VAT_MISSING",
       paths: ["vatBreakdown"],
@@ -121,7 +145,7 @@ function requiredFieldViolations(w: Working): ConstraintViolation[] {
       detail: "VAT breakdown has entries with missing rate/net/tax that could not be completed",
     });
   }
-  if (w.lines.length === 0) {
+  if (profile.requireLineItems && w.lines.length === 0) {
     out.push({
       constraint: "LINE_ITEMS_MISSING",
       paths: ["lineItems"],
@@ -133,10 +157,13 @@ function requiredFieldViolations(w: Working): ConstraintViolation[] {
 
 /** Serialize the working model back to a canonical-shaped object. */
 function toCanonical(w: Working, opts: ReconcileOptions): unknown {
+  const profile = profileFor(w.documentType);
+  const totalsComplete = w.net !== null && w.tax !== null && w.gross !== null;
   return {
-    schemaVersion: 1,
-    invoiceNumber: w.invoiceNumber,
-    issueDate: w.issueDate,
+    schemaVersion: 2,
+    documentType: w.documentType,
+    documentNumber: w.documentNumber,
+    documentDate: w.documentDate,
     dueDate: w.dueDate,
     currency: w.currency ?? opts.defaultCurrency,
     locale: w.locale,
@@ -148,11 +175,17 @@ function toCanonical(w: Working, opts: ReconcileOptions): unknown {
       address: w.seller.address,
     },
     buyer: w.buyer,
-    totals: {
-      net: w.net === null ? null : moneyStr(w.net),
-      tax: w.tax === null ? null : moneyStr(w.tax),
-      gross: w.gross === null ? null : moneyStr(w.gross),
-    },
+    // A class that need not carry amounts and carries none emits null rather
+    // than a totals object full of nulls: "this document has no money on it"
+    // is a different statement from "we failed to read the money".
+    totals:
+      !profile.requireTotals && !totalsComplete
+        ? null
+        : {
+            net: w.net === null ? null : moneyStr(w.net),
+            tax: w.tax === null ? null : moneyStr(w.tax),
+            gross: w.gross === null ? null : moneyStr(w.gross),
+          },
     vatBreakdown: w.vat.map((v) => ({
       rate: v.rate,
       net: v.net === null ? null : moneyStr(v.net),

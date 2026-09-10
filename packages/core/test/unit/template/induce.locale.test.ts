@@ -43,7 +43,7 @@ function deDoc(grossText: string, netText: string, taxText: string): PositionedT
 }
 
 const enInvoice = invoice({
-  invoiceNumber: "INV-2026-0042",
+  documentNumber: "INV-2026-0042",
   seller: {
     name: "ACME Office Supplies Ltd",
     ustIdNr: null,

@@ -113,7 +113,7 @@ describe("applyTemplate / findField — anchoring", () => {
     const template = baseTemplate({ invoiceNumber: { label: "Rechnungsnummer" } });
     const { envelope, fieldsHit } = applyTemplate(template, d);
     expect(fieldsHit).toContain("invoiceNumber");
-    expect(envelope.invoice.invoiceNumber).toBe("R-2026-0042");
+    expect(envelope.invoice.documentNumber).toBe("R-2026-0042");
   });
 
   it("rejects a value that fails valuePattern, leaving the field missed", () => {
@@ -122,7 +122,7 @@ describe("applyTemplate / findField — anchoring", () => {
     const { envelope, fieldsHit, fieldsMissed } = applyTemplate(template, d);
     expect(fieldsHit).not.toContain("invoiceNumber");
     expect(fieldsMissed).toContain("invoiceNumber");
-    expect(envelope.invoice.invoiceNumber).toBeUndefined();
+    expect(envelope.invoice.documentNumber).toBeUndefined();
   });
 
   it("assigns a distinct confidence for every rung of the anchor ladder", () => {
@@ -134,7 +134,7 @@ describe("applyTemplate / findField — anchoring", () => {
     const pattern = "R-\\d+-\\d+";
     const withLine = (fields: VendorTemplate["fields"]) =>
       applyTemplate(baseTemplate(fields), doc([line("Rechnungsnummer: R-2026-0042", { x: 0.1, y: 0.1, width: 0.5 })]))
-        .envelope.fieldMeta["invoiceNumber"]?.confidence;
+        .envelope.fieldMeta["documentNumber"]?.confidence;
 
     expect(withLine({ invoiceNumber: { region, label: "Rechnungsnummer", valuePattern: pattern } })).toBe(0.95);
     expect(withLine({ invoiceNumber: { region, valuePattern: pattern } })).toBe(0.8);
@@ -177,7 +177,7 @@ describe("applyTemplate / findField — anchoring", () => {
     expect(() => (result = applyTemplate(template, d))).not.toThrow();
     expect(result!.fieldsHit).toHaveLength(0);
     expect(result!.fieldsMissed).toEqual(["invoiceNumber", "issueDate"]);
-    expect(result!.envelope.invoice.invoiceNumber).toBeUndefined();
+    expect(result!.envelope.invoice.documentNumber).toBeUndefined();
   });
 
   it("extracts line items via a matched lineItemTable", () => {
@@ -218,13 +218,13 @@ describe("applyTemplate / findField — anchoring", () => {
     const template = baseTemplate({ invoiceNumber: { label: "Rechnungsnummer", valuePattern: "R-\\d+-\\d+" } });
 
     it("[current] extracts the decoy invoice number preceding the real one", () => {
-      expect(applyTemplate(template, d).envelope.invoice.invoiceNumber).toBe("R-0000-0000");
+      expect(applyTemplate(template, d).envelope.invoice.documentNumber).toBe("R-0000-0000");
     });
 
     knownBug("INVEX-042", "label offset anchors to the wrong occurrence, extracting a decoy value").it(
       "extracts the real (last-occurring) invoice number, not the decoy",
       () => {
-        expect(applyTemplate(template, d).envelope.invoice.invoiceNumber).toBe("R-2026-0042");
+        expect(applyTemplate(template, d).envelope.invoice.documentNumber).toBe("R-2026-0042");
       },
     );
   });

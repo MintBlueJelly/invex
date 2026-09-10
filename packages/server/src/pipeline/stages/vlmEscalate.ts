@@ -5,6 +5,7 @@ import {
   zVlmResult,
   type CandidateInvoice,
   type CanonicalInvoice,
+  type DocumentType,
   type ExtractionEnvelope,
   type FieldMeta,
 } from "@invex/core";
@@ -50,7 +51,8 @@ export const vlmEscalateStage: StageHandler = async (tx, doc, ports) => {
     throw new Error(`VLM result failed schema validation: ${parsed.error.message.slice(0, 500)}`);
   }
 
-  if (!parsed.data.isInvoice) {
+  // null documentType = none of the five classes we extract -> Markdown.
+  if (parsed.data.documentType === null) {
     await updateDocument(tx, doc.id, {
       status: "exported_markdown",
       vlmAttempted: true,
@@ -59,31 +61,37 @@ export const vlmEscalateStage: StageHandler = async (tx, doc, ports) => {
     await emitEvent(tx, doc.id, "markdown_exported", { reason: "vlm_non_invoice" });
     return;
   }
-  if (!parsed.data.invoice) {
-    throw new Error("VLM classified the document as invoice but returned no invoice payload");
+  if (!parsed.data.document) {
+    throw new Error(
+      `VLM classified the document as ${parsed.data.documentType} but returned no payload`,
+    );
   }
 
   await updateDocument(tx, doc.id, {
     status: "extracted",
     vlmAttempted: true,
-    candidate: envelopeFromVlm(parsed.data.invoice),
+    candidate: envelopeFromVlm(parsed.data.document, parsed.data.documentType),
   });
 };
 
-/** Wrap a VLM-produced canonical invoice as a candidate envelope (source: vlm). */
-function envelopeFromVlm(invoice: CanonicalInvoice): ExtractionEnvelope {
-  const { schemaVersion: _v, ...candidate } = invoice;
+/** Wrap a VLM-produced canonical document as a candidate envelope (source: vlm). */
+function envelopeFromVlm(document: CanonicalInvoice, documentType: DocumentType): ExtractionEnvelope {
+  const { schemaVersion: _v, ...candidate } = document;
   const fieldMeta: Record<string, FieldMeta> = {};
   const mark = (path: string) => {
     fieldMeta[path] = { source: "vlm", confidence: 0.75 };
   };
-  mark("invoiceNumber");
-  mark("issueDate");
+  // The top-level documentType is authoritative over the one inside the
+  // payload: it is the field the model was asked to classify with.
+  candidate.documentType = documentType;
+  mark("documentType");
+  mark("documentNumber");
+  mark("documentDate");
   mark("totals.net");
   mark("totals.tax");
   mark("totals.gross");
   mark("seller.name");
-  invoice.lineItems.forEach((_, i) => mark(`lineItems.${i}`));
-  invoice.vatBreakdown.forEach((_, i) => mark(`vatBreakdown.${i}`));
+  document.lineItems.forEach((_, i) => mark(`lineItems.${i}`));
+  document.vatBreakdown.forEach((_, i) => mark(`vatBreakdown.${i}`));
   return { invoice: candidate as CandidateInvoice, fieldMeta };
 }

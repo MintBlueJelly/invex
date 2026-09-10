@@ -92,9 +92,10 @@ function ocrUnknownVendorDoclingJson(): unknown {
 
 function unknownVendorInvoice(): CanonicalInvoice {
   return {
-    schemaVersion: 1,
-    invoiceNumber: "RG-77",
-    issueDate: "2026-06-01",
+    schemaVersion: 2,
+    documentType: "invoice",
+    documentNumber: "RG-77",
+    documentDate: "2026-06-01",
     dueDate: null,
     currency: "EUR",
     locale: "de-DE",
@@ -193,7 +194,7 @@ describe("Path C — image lane (VLM enabled)", () => {
     expect(doc["route"]).toBe("image");
     expect(doc["status"]).toBe("committed");
     const result = doc["result"] as CanonicalInvoice;
-    expect(result.invoiceNumber).toBe(wantStandard.invoiceNumber); // from the OCR text
+    expect(result.documentNumber).toBe(wantStandard.documentNumber); // from the OCR text
     expect(result.totals).toEqual(wantStandard.totals);
     expect(result.lineItems).toHaveLength(wantStandard.lineItems.length);
     expect(result.lineItems[0]?.description).toBe(wantStandard.lineItems[0]!.description);
@@ -206,14 +207,14 @@ describe("Path C — image lane (VLM enabled)", () => {
 
   it("unknown vendor: VLM parses, result persists an OCR-capable template", async () => {
     docling.enqueue(ocrUnknownVendorDoclingJson());
-    vlm.enqueue({ isInvoice: true, invoice: unknownVendorInvoice(), markdown: null });
+    vlm.enqueue({ documentType: "invoice", document: unknownVendorInvoice(), markdown: null });
 
     const id = await ingestScan("R-SCAN-2");
     await env.machine.drain();
 
     const doc = await getDoc(id);
     expect(doc["status"]).toBe("committed");
-    expect((doc["result"] as CanonicalInvoice).invoiceNumber).toBe("RG-77");
+    expect((doc["result"] as CanonicalInvoice).documentNumber).toBe("RG-77");
 
     const events = await getEvents(id);
     expect(events.some((e) => e.event === "vlm_called")).toBe(true);

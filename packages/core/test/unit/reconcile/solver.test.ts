@@ -9,8 +9,8 @@ function env(invoice: CandidateInvoice): ExtractionEnvelope {
 /** A fully consistent single-rate invoice: 2 lines, 19% VAT. */
 function consistentInvoice(): CandidateInvoice {
   return {
-    invoiceNumber: "R-2026-0042",
-    issueDate: "2026-06-15",
+    documentNumber: "R-2026-0042",
+    documentDate: "2026-06-15",
     currency: "EUR",
     seller: { name: "ACME GmbH", ustIdNr: "DE811907980", ibans: [] },
     totals: { net: "150.00", tax: "28.50", gross: "178.50" },
@@ -28,7 +28,7 @@ describe("reconcile — golden cases", () => {
     expect(r.status).toBe("reconciled");
     expect(r.repairs).toHaveLength(0);
     expect(r.violations).toHaveLength(0);
-    expect(r.invoice?.totals.gross).toBe("178.50");
+    expect(r.invoice?.totals?.gross).toBe("178.50");
   });
 
   it("R_QTY_DEFAULT: missing quantity defaults to 1 when unitPrice × 1 = lineTotal", () => {
@@ -75,7 +75,7 @@ describe("reconcile — golden cases", () => {
     c.vatBreakdown = [];
     const r = reconcile(env(c));
     expect(r.status).toBe("reconciled");
-    expect(r.invoice?.totals.tax).toBe("28.50");
+    expect(r.invoice?.totals?.tax).toBe("28.50");
     expect(r.invoice?.vatBreakdown).toEqual([{ rate: 19, net: "150.00", tax: "28.50" }]);
     expect(r.repairs.map((x) => x.rule)).toEqual(
       expect.arrayContaining(["R_TOTAL_DERIVE", "R_VAT_SYNTH"]),
@@ -92,7 +92,7 @@ describe("reconcile — golden cases", () => {
 
   it("multi-rate + missing line rates escalates with LINE_TAX_UNRESOLVED (user decision)", () => {
     const c: CandidateInvoice = {
-      invoiceNumber: "R-1", issueDate: "2026-01-01", currency: "EUR",
+      documentNumber: "R-1", documentDate: "2026-01-01", currency: "EUR",
       seller: { name: "Mixed GmbH", ibans: [] },
       totals: { net: "200.00", tax: "26.00", gross: "226.00" },
       vatBreakdown: [
@@ -134,7 +134,7 @@ describe("reconcile — golden cases", () => {
 
   it("totalFailure: nothing reconciles at all (reclassification signal §5)", () => {
     const c: CandidateInvoice = {
-      invoiceNumber: "X", issueDate: "2026-01-01",
+      documentNumber: "X", documentDate: "2026-01-01",
       seller: { name: "??", ibans: [] },
       totals: { net: "100.00", tax: "50.00", gross: "poison" as string },
       lineItems: [{ description: "??", quantity: "3", unitPrice: "5.00", lineTotal: "99.00" }],
@@ -164,10 +164,10 @@ describe("reconcile — golden cases", () => {
 
   it("missing required metadata escalates (REQUIRED_MISSING)", () => {
     const c = consistentInvoice();
-    c.invoiceNumber = null;
+    c.documentNumber = null;
     const r = reconcile(env(c));
     expect(r.status).toBe("failed");
-    expect(r.violations.some((v) => v.constraint === "REQUIRED_MISSING" && v.paths[0] === "invoiceNumber")).toBe(true);
+    expect(r.violations.some((v) => v.constraint === "REQUIRED_MISSING" && v.paths[0] === "documentNumber")).toBe(true);
   });
 
   it("writes derived values back into the envelope with source 'derived'", () => {

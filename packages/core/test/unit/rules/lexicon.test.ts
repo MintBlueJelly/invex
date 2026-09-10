@@ -118,7 +118,11 @@ describe("defaultLexicon.header — cross-field label collisions", () => {
     .sort((a, b) => `${a.short}|${a.long}`.localeCompare(`${b.short}|${b.long}`));
 
   it("has exactly the known label collisions today (most within the same field, harmless)", () => {
-    expect(collisions).toHaveLength(29);
+    // Rose from 29 when the document-class labels landed (Auftragsbestätigungs-Nr.,
+    // Lieferschein-Nr., Angebotsdatum, ...). Every one of the additions is
+    // SAME-field — the cross-field set below, which is the one that carries a
+    // real mislabel risk, is unchanged.
+    expect(collisions).toHaveLength(47);
   });
 
   it("has exactly these collisions ACROSS different fields — each is a genuine mislabel risk", () => {

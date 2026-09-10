@@ -1,3 +1,5 @@
+import type { DocumentType } from "./documentType";
+
 /**
  * Extraction envelope: a deep-partial candidate invoice plus per-field provenance.
  * Provenance lives OUTSIDE the canonical JSON (keyed by field path) so the canonical
@@ -62,8 +64,15 @@ export interface CandidateLineItem {
 }
 
 export interface CandidateInvoice {
-  invoiceNumber?: string | null;
-  issueDate?: string | null;
+  /**
+   * Which document class this is. Nullable because extraction may not know:
+   * the heading may be absent or ambiguous, and Path A reads it from BT-3.
+   * The solver defaults an unknown class to "invoice", which is what preserves
+   * pre-v2 behaviour for anything the kind detector does not recognise.
+   */
+  documentType?: DocumentType | null;
+  documentNumber?: string | null;
+  documentDate?: string | null;
   dueDate?: string | null;
   currency?: string | null;
   locale?: string | null;

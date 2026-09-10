@@ -60,7 +60,7 @@ beforeAll(async () => {
       "a-zugferd.pdf": {
         route: "zugferd",
         terminalStatus: "committed",
-        gross: CANONICAL.totals.gross,
+        gross: CANONICAL.totals!.gross,
         lineCount: CANONICAL.lineItems.length,
         hasEvents: ["xml_parsed"],
         // Path A must not touch docling at all.

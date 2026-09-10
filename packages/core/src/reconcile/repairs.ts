@@ -2,6 +2,7 @@ import Decimal from "decimal.js";
 import type { Working } from "./working";
 import { moneyStr, qtyStr } from "./working";
 import type { Tolerances } from "./constraints";
+import { profileFor } from "./profiles";
 import type { AppliedRepair, ConstraintViolation } from "./types";
 
 /**
@@ -229,11 +230,25 @@ export function repairPass(w: Working, ctx: RepairContext): boolean {
   return fired;
 }
 
-/** Post-repair structural gaps that block acceptance (they escalate). */
+/**
+ * Post-repair structural gaps that block acceptance (they escalate).
+ *
+ * A missing line total is a gap only where the class carries money at all. On a
+ * Lieferschein that prints quantities and no prices, every line legitimately
+ * has none, and demanding one would reject the document for being what it is
+ * (reconcile/profiles.ts). Where the class DOES require amounts, the check is
+ * unchanged — including for a delivery note that prints prices, since then the
+ * document is priced and the gap is real.
+ */
 export function unresolvedViolations(w: Working): ConstraintViolation[] {
   const out: ConstraintViolation[] = [];
+  const priceless =
+    !profileFor(w.documentType).requireTotals &&
+    w.net === null &&
+    w.gross === null &&
+    w.lines.every((l) => l.lineTotal === null && l.unitPrice === null);
   w.lines.forEach((l, i) => {
-    if (l.lineTotal === null) {
+    if (l.lineTotal === null && !priceless) {
       out.push({
         constraint: "LINE_TOTAL_UNRESOLVED",
         paths: [`lineItems.${i}.lineTotal`],

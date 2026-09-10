@@ -26,10 +26,10 @@ const standard = loadGolden("de-standard-19");
 if (!isSynthetic(standard)) throw new Error("de-standard-19 golden must be synthetic");
 const canonical = standard.expected.canonical!;
 
-function specWith(invoiceNumber: string): InvoiceSpec {
+function specWith(documentNumber: string): InvoiceSpec {
   return {
-    invoiceNumber,
-    issueDate: canonical.issueDate,
+    invoiceNumber: documentNumber,
+    issueDate: canonical.documentDate,
     dueDate: canonical.dueDate ?? undefined,
     currency: canonical.currency,
     seller: {
@@ -120,13 +120,13 @@ describe("Path A — ZUGfERD lane", () => {
     const doc = await getDoc(id);
     expect(doc["status"]).toBe("committed");
     const result = doc["result"] as {
-      invoiceNumber: string;
+      documentNumber: string;
       totals: { net: string; tax: string; gross: string };
       seller: { ustIdNr: string | null; ibans: string[] };
       vatBreakdown: { rate: number }[];
       lineItems: { description: string; taxRate: number | null }[];
     };
-    expect(result.invoiceNumber).toBe("R-ZUG-OK");
+    expect(result.documentNumber).toBe("R-ZUG-OK");
     expect(result.totals).toEqual(canonical.totals);
     expect(result.seller.ustIdNr).toBe(spec.seller.ustIdNr);
     expect(result.seller.ibans).toEqual([spec.seller.iban]);

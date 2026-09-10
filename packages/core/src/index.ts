@@ -8,10 +8,12 @@ export { vlmResultJsonSchema, zVlmResult, type VlmResult } from "./schema/vlm";
 
 // Constraint solver / reconciler
 export * from "./reconcile/types";
+export { documentProfiles, profileFor, type DocumentProfile } from "./reconcile/profiles";
 export { reconcile } from "./reconcile/solver";
 
 // ZUGfERD / Factur-X (CII) parsing
 export { parseCiiToEnvelope } from "./zugferd/cii";
+export { ciiTypeCodeFor, documentTypeFromCiiTypeCode } from "./zugferd/typeCode";
 
 // Positioned-text model (shared representation for templates/rules/classifier)
 export * from "./positioned/model";

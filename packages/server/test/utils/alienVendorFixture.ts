@@ -54,9 +54,10 @@ export function alienVendorDoclingJson(): unknown {
 /** The invoice a human/VLM correctly reads off the alien-labeled page. */
 export function alienVendorInvoice(): CanonicalInvoice {
   return {
-    schemaVersion: 1,
-    invoiceNumber: "R-2026-0042",
-    issueDate: "2026-06-15",
+    schemaVersion: 2,
+    documentType: "invoice",
+    documentNumber: "R-2026-0042",
+    documentDate: "2026-06-15",
     dueDate: null,
     currency: "EUR",
     locale: "de-DE",

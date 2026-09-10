@@ -1,0 +1,183 @@
+{
+  "id": "de-auftragsbestaetigung-19",
+  "title": "Auftragsbestätigung with a 19% rate: the order-confirmation class end to end",
+  "reviewed": true,
+  "authoredOn": "2026-09-10",
+  "render": {
+    "doc": {
+      "locale": "de",
+      "seller": {
+        "nameText": "Nordlicht Maschinenbau GmbH",
+        "addressLines": [
+          "Hafenstraße 47",
+          "24103 Kiel"
+        ],
+        "taxIdLine": "USt-IdNr.: DE136695976",
+        "bankLines": [
+          "Bankverbindung: IBAN DE02120300000000202051"
+        ]
+      },
+      "buyerLines": [
+        "Werkzeughandel Süd GmbH",
+        "Gewerbering 8",
+        "86156 Augsburg"
+      ],
+      "headingText": "Auftragsbestätigung",
+      "headerFields": [
+        {
+          "labelText": "Auftragsbestätigungs-Nr.",
+          "valueText": "AB-2026-0042"
+        },
+        {
+          "labelText": "Auftragsdatum",
+          "valueText": "01.09.2026"
+        },
+        {
+          "labelText": "Ihre Bestellung",
+          "valueText": "BE-77"
+        }
+      ],
+      "tableHeaders": [
+        "Pos",
+        "Bezeichnung",
+        "Menge",
+        "Einzelpreis",
+        "Gesamt"
+      ],
+      "tableColumns": [
+        "position",
+        "description",
+        "quantity",
+        "unitPrice",
+        "lineTotal"
+      ],
+      "lines": [
+        {
+          "posText": "1",
+          "descriptionText": "Hydraulikzylinder HZ-90",
+          "quantityText": "4",
+          "unitPriceText": "312,50",
+          "lineTotalText": "1.250,00"
+        },
+        {
+          "posText": "2",
+          "descriptionText": "Dichtungssatz für HZ-90",
+          "quantityText": "4",
+          "unitPriceText": "37,25",
+          "lineTotalText": "149,00"
+        },
+        {
+          "posText": "3",
+          "descriptionText": "Montage vor Ort, pauschal",
+          "quantityText": "1",
+          "unitPriceText": "400,00",
+          "lineTotalText": "400,00"
+        }
+      ],
+      "totalsBlock": [
+        {
+          "labelText": "Zwischensumme",
+          "valueText": "1.799,00"
+        },
+        {
+          "labelText": "MwSt. 19 %",
+          "valueText": "341,81"
+        },
+        {
+          "labelText": "Gesamtbetrag",
+          "valueText": "2.140,81",
+          "bold": true
+        }
+      ],
+      "noteLines": [
+        "Wir bestätigen Ihren Auftrag zu den genannten Konditionen.",
+        "Voraussichtlicher Liefertermin: KW 41/2026."
+      ]
+    }
+  },
+  "expected": {
+    "canonical": {
+      "schemaVersion": 2,
+      "documentType": "orderConfirmation",
+      "documentNumber": "AB-2026-0042",
+      "documentDate": "2026-09-01",
+      "dueDate": null,
+      "currency": "EUR",
+      "locale": null,
+      "seller": {
+        "name": "Nordlicht Maschinenbau GmbH",
+        "ustIdNr": "DE136695976",
+        "steuernummer": null,
+        "ibans": [
+          "DE02120300000000202051"
+        ],
+        "address": {
+          "street": "Hafenstraße 47",
+          "postalCode": "24103",
+          "city": "Kiel",
+          "countryCode": null
+        }
+      },
+      "buyer": null,
+      "totals": {
+        "net": "1799.00",
+        "tax": "341.81",
+        "gross": "2140.81"
+      },
+      "vatBreakdown": [
+        {
+          "rate": 19,
+          "net": "1799.00",
+          "tax": "341.81"
+        }
+      ],
+      "lineItems": [
+        {
+          "position": 1,
+          "description": "Hydraulikzylinder HZ-90",
+          "quantity": "4",
+          "unit": null,
+          "unitPrice": "312.50",
+          "taxRate": 19,
+          "lineTotal": "1250.00"
+        },
+        {
+          "position": 2,
+          "description": "Dichtungssatz für HZ-90",
+          "quantity": "4",
+          "unit": null,
+          "unitPrice": "37.25",
+          "taxRate": 19,
+          "lineTotal": "149.00"
+        },
+        {
+          "position": 3,
+          "description": "Montage vor Ort, pauschal",
+          "quantity": "1",
+          "unit": null,
+          "unitPrice": "400.00",
+          "taxRate": 19,
+          "lineTotal": "400.00"
+        }
+      ],
+      "paymentTerms": null
+    },
+    "smoke": {
+      "route": "text",
+      "terminalStatus": "committed",
+      "hasEvents": [
+        "text_gate",
+        "classified",
+        "reconciled",
+        "committed"
+      ],
+      "notEvents": [
+        "vlm_called",
+        "stage_error",
+        "markdown_exported",
+        "template_induced"
+      ],
+      "arithmeticVerified": true
+    }
+  }
+}

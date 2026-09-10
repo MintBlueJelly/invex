@@ -23,18 +23,26 @@ export const reconcileStage: StageHandler = async (tx, doc, ports) => {
     repairs: result.repairs,
     violations: result.violations,
     totalFailure: result.totalFailure,
+    arithmeticVerified: result.arithmeticVerified,
   });
 
   if (result.status === "reconciled") {
     await updateDocument(tx, doc.id, {
       status: "committed",
+      arithmeticVerified: result.arithmeticVerified,
       result: result.invoice!,
+      // Authoritative: the solver defaulted an unknown class to "invoice", so
+      // this is the class the document actually committed as.
+      documentType: result.invoice!.documentType,
       candidate: result.envelope,
       repairs: result.repairs,
       violations: [],
     });
     await emitEvent(tx, doc.id, "committed", {
-      gross: result.invoice!.totals.gross,
+      arithmeticVerified: result.arithmeticVerified,
+      // Null for a class that need not carry amounts — a priceless Lieferschein
+      // commits with no money on it at all (reconcile/profiles.ts).
+      gross: result.invoice!.totals?.gross ?? null,
       lineCount: result.invoice!.lineItems.length,
       repairCount: result.repairs.length,
     });
@@ -42,8 +50,14 @@ export const reconcileStage: StageHandler = async (tx, doc, ports) => {
     // Template feedback edges (briefing §3/§6): every successful VLM extraction
     // persists a template; a successful template-less rule-engine run optionally
     // does too — both grow deterministic coverage.
+    // Templates are keyed by VENDOR, not by document class, so a template
+    // induced from a Lieferschein — mostly empty fields, a price-free line
+    // table — would be resolved and applied to that same vendor's next
+    // Rechnung. Induce only from invoices until templates are keyed on
+    // (vendor, documentType).
+    const inducible = result.invoice!.documentType === "invoice";
     const sources = new Set(Object.values(doc.candidate.fieldMeta).map((m) => m.source));
-    if (doc.positionedDoc && (doc.route === "text" || doc.route === "image")) {
+    if (inducible && doc.positionedDoc && (doc.route === "text" || doc.route === "image")) {
       const positioned = doc.positionedDoc as unknown as PositionedTextDocument;
       if (sources.has("vlm")) {
         await induceAndPersistTemplate(tx, doc.id, result.invoice!, positioned, "vlm");
@@ -55,14 +69,19 @@ export const reconcileStage: StageHandler = async (tx, doc, ports) => {
   }
 
   // Failure routing (briefing §2/§5):
-  const classifier = doc.classifier as { band?: string; score?: number } | null;
+  const classifier = doc.classifier as { band?: string; score?: number; kind?: string | null } | null;
+  // "We believed this was a document we extract" — either the score said so or
+  // the heading did. Mirrors the routing decision in textLane.ts, so a document
+  // admitted on kind evidence is also reclassifiable on it.
+  const believed = classifier?.band === "invoice" || typeof classifier?.kind === "string";
 
   // "Classified as invoice but NO amounts reconcile at all" → probable
   // misclassification → Markdown path, never human review (§5).
-  if (result.totalFailure && classifier?.band === "invoice" && doc.markdown !== null) {
+  if (result.totalFailure && believed && doc.markdown !== null) {
     await updateDocument(tx, doc.id, {
       status: "exported_markdown",
       candidate: result.envelope,
+      arithmeticVerified: result.arithmeticVerified,
       repairs: result.repairs,
       violations: result.violations,
     });
@@ -81,6 +100,7 @@ export const reconcileStage: StageHandler = async (tx, doc, ports) => {
     await updateDocument(tx, doc.id, {
       status: "escalated_vlm",
       candidate: result.envelope,
+      arithmeticVerified: result.arithmeticVerified,
       repairs: result.repairs,
       violations: result.violations,
     });
@@ -97,6 +117,7 @@ export const reconcileStage: StageHandler = async (tx, doc, ports) => {
   await updateDocument(tx, doc.id, {
     status: "pending_review",
     candidate: result.envelope,
+    arithmeticVerified: result.arithmeticVerified,
     repairs: result.repairs,
     violations: result.violations,
   });

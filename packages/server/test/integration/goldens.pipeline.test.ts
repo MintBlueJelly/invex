@@ -24,6 +24,8 @@ interface Detail {
   status: string;
   result: Record<string, unknown> | null;
   route: string | null;
+  documentType: string | null;
+  arithmeticVerified: boolean | null;
   violations: { constraint: string }[] | null;
 }
 
@@ -60,6 +62,12 @@ describe("golden scenarios through the pipeline", () => {
       const smoke = g.expected.smoke ?? {};
       if (smoke.route) expect(doc.route, "route").toBe(smoke.route);
       if (smoke.terminalStatus) expect(doc.status, "terminal status").toBe(smoke.terminalStatus);
+      if (smoke.arithmeticVerified !== undefined) {
+        expect(doc.arithmeticVerified, "arithmeticVerified").toBe(smoke.arithmeticVerified);
+      }
+      if (g.expected.canonical) {
+        expect(doc.documentType, "documentType").toBe(g.expected.canonical.documentType);
+      }
       for (const e of smoke.hasEvents ?? []) expect(events, `expected event ${e}`).toContain(e);
       for (const e of smoke.notEvents ?? []) expect(events, `unexpected event ${e}`).not.toContain(e);
 
@@ -95,8 +103,8 @@ describe("committed invoices match the hand-authored canonical", () => {
       const got = doc.result as unknown as typeof want;
 
       expect(got.totals, "totals").toEqual(want.totals);
-      expect(got.invoiceNumber, "invoiceNumber").toBe(want.invoiceNumber);
-      expect(got.issueDate, "issueDate").toBe(want.issueDate);
+      expect(got.documentNumber, "invoiceNumber").toBe(want.documentNumber);
+      expect(got.documentDate, "issueDate").toBe(want.documentDate);
       expect(got.vatBreakdown, "vatBreakdown").toEqual(want.vatBreakdown);
       expect(got.lineItems.map((l) => l.description), "line descriptions").toEqual(
         want.lineItems.map((l) => l.description),

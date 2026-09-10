@@ -61,4 +61,26 @@ export interface ReconciliationResult {
    * extraction failure to escalate, not evidence the document is no invoice.
    */
   totalFailure: boolean;
+  /**
+   * True when at least one arithmetic constraint (C1–C4) was evaluable on the
+   * EXTRACTED (pre-repair) values and held — i.e. the document's own numbers
+   * corroborated each other.
+   *
+   * The counterpart to totalFailure, and judged the same pre-repair way for the
+   * same reason: a constraint satisfied by a value a repair derived from its
+   * own operands is circular and corroborates nothing.
+   *
+   * The two are NOT complements — three states exist, and the third is the one
+   * that motivated this field:
+   *
+   *   verified=true,  totalFailure=false  the numbers check out
+   *   verified=false, totalFailure=true   the numbers contradict each other
+   *   verified=false, totalFailure=false  THERE WERE NO NUMBERS
+   *
+   * Without it, a Lieferschein that prints no prices reaches the committed status
+   * indistinguishable from an invoice whose arithmetic was actually checked
+   * (reconcile/profiles.ts). C5 is excluded because it is a plausibility check
+   * on the VAT rate, not arithmetic.
+   */
+  arithmeticVerified: boolean;
 }

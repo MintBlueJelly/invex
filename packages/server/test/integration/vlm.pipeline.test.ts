@@ -51,7 +51,7 @@ async function getEvents(id: string) {
 describe("VLM escalation (stub)", () => {
   it("rules-fail → VLM extract → committed + template learns the alien idiom", async () => {
     docling.enqueue(alienVendorDoclingJson());
-    vlm.enqueue({ isInvoice: true, invoice: alienVendorInvoice(), markdown: null });
+    vlm.enqueue({ documentType: "invoice", document: alienVendorInvoice(), markdown: null });
 
     const id = await ingestTextPdf();
     await env.machine.drain();
@@ -59,7 +59,7 @@ describe("VLM escalation (stub)", () => {
     const doc = await getDoc(id);
     expect(doc["status"]).toBe("committed");
     expect(doc["vlmAttempted"]).toBe(true);
-    expect((doc["result"] as CanonicalInvoice).totals.gross).toBe("1366.95");
+    expect((doc["result"] as CanonicalInvoice).totals?.gross).toBe("1366.95");
 
     const events = await getEvents(id);
     const names = events.map((e) => e.event);
@@ -93,7 +93,7 @@ describe("VLM escalation (stub)", () => {
         { text: "Hiermit bestätigen wir den Eingang Ihrer Unterlagen.", x: 50, yTop: 200 },
       ]),
     );
-    vlm.enqueue({ isInvoice: false, invoice: null, markdown: "# Eingangsbestätigung\nKein Rechnungsdokument." });
+    vlm.enqueue({ documentType: null, document: null, markdown: "# Eingangsbestätigung\nKein Rechnungsdokument." });
 
     const id = await ingestTextPdf();
     await env.machine.drain();

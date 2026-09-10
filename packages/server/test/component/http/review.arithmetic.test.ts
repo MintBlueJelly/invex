@@ -18,9 +18,10 @@ const it = makeItShared();
 
 function correction(patch: Partial<CanonicalInvoice> = {}): CanonicalInvoice {
   return {
-    schemaVersion: 1,
-    invoiceNumber: "R-2026-0042",
-    issueDate: "2026-06-15",
+    schemaVersion: 2,
+    documentType: "invoice",
+    documentNumber: "R-2026-0042",
+    documentDate: "2026-06-15",
     dueDate: null,
     currency: "EUR",
     locale: "de-DE",
@@ -147,7 +148,7 @@ describe("PUT /api/review/:id — arithmetic gate", () => {
     const res = await env.app.inject({
       method: "PUT",
       url: `/api/review/${id}`,
-      payload: correction({ invoiceNumber: "" }),
+      payload: correction({ documentNumber: "" }),
     });
 
     expect(res.statusCode).toBe(400);

@@ -95,9 +95,10 @@
   },
   "expected": {
     "canonical": {
-      "schemaVersion": 1,
-      "invoiceNumber": "RS-2026-0301",
-      "issueDate": "2026-12-31",
+      "schemaVersion": 2,
+      "documentType": "invoice",
+      "documentNumber": "RS-2026-0301",
+      "documentDate": "2026-12-31",
       "dueDate": null,
       "currency": "EUR",
       "locale": null,
@@ -167,7 +168,8 @@
       "paymentTerms": null
     },
     "smoke": {
-      "route": "text"
+      "route": "text",
+      "arithmeticVerified": true
     }
   }
 }

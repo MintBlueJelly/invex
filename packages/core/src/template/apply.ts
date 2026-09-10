@@ -198,7 +198,7 @@ export function applyTemplate(
     const value = hit ? parseFieldValue(key, hit.raw, template) : null;
     if (hit && value !== null) {
       setField(invoice, key, value);
-      fieldMeta[key] = {
+      fieldMeta[canonicalPathFor(key)] = {
         source: "template",
         confidence: hit.confidence,
         rawText: hit.raw,
@@ -241,13 +241,34 @@ export function applyTemplate(
   return { envelope: { invoice, fieldMeta }, fieldsHit, fieldsMissed };
 }
 
+/**
+ * Template vocabulary -> canonical field path.
+ *
+ * fieldMeta is keyed by CANONICAL dotted path (schema/candidate.ts) because
+ * that is what the solver's write-back and every provenance consumer expect.
+ * Most template keys are already canonical paths; the two that are not are the
+ * ones the v2 schema renamed while the template vocabulary deliberately stayed
+ * put (template/types.ts). fieldsHit/fieldsMissed keep the template names —
+ * they report which DESCRIPTOR resolved, not which canonical field.
+ */
+export function canonicalPathFor(key: TemplateFieldKey): string {
+  switch (key) {
+    case "invoiceNumber":
+      return "documentNumber";
+    case "issueDate":
+      return "documentDate";
+    default:
+      return key;
+  }
+}
+
 function setField(invoice: CandidateInvoice, key: TemplateFieldKey, value: string): void {
   switch (key) {
     case "invoiceNumber":
-      invoice.invoiceNumber = value;
+      invoice.documentNumber = value;
       break;
     case "issueDate":
-      invoice.issueDate = value;
+      invoice.documentDate = value;
       break;
     case "dueDate":
       invoice.dueDate = value;

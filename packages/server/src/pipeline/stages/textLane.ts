@@ -13,6 +13,7 @@ import {
   type PositionedTextDocument,
 } from "@invex/core";
 import type { StageHandler } from "../machine";
+import { withDocumentType } from "./documentType";
 import type { Tx, DocumentRow } from "../../db/repos/documents";
 import { emitEvent, getPdf, updateDocument } from "../../db/repos/documents";
 import { recordEscalation } from "../../db/repos/escalations";
@@ -95,11 +96,34 @@ export const textLaneStage: StageHandler = async (tx, doc, ports) => {
     band: classification.band,
     score: classification.score,
     features: classification.features,
+    // Logged beside the feature vector so §11 calibration can see where the
+    // two axes agree and where they disagree.
+    kind: classification.kind,
+    kindEvidence: classification.kindEvidence,
   });
+
+  /**
+   * A recognised heading rescues a document from the Markdown exit — and only
+   * from that one.
+   *
+   * The band is a PROXY for "priced commercial document"; a title reading
+   * "Lieferschein" is direct evidence of a class we have committed to
+   * extracting. A priceless delivery note cannot reach invoiceMin by
+   * construction (F1=3 plus F3=2 is 5, and less when its labels are a plain
+   * "Nr."/"Datum"), so without this it would be exported as Markdown for being
+   * exactly what it is. Tuning invoiceMin down instead would degrade the
+   * invoice/non-invoice separation the band exists for.
+   *
+   * It deliberately does NOT bypass the uncertain -> VLM escalation below.
+   * F1 *is* the kind signal, so almost everything in the middle band fired it;
+   * treating a heading as decisive there would make the uncertain band inert
+   * and skip the VLM in precisely the mixed-evidence case it exists to settle.
+   */
+  const rescuedByKind = classification.kind !== null;
 
   const markdown = positioned.markdown ?? positionedToMarkdown(positioned);
 
-  if (classification.band === "non_invoice") {
+  if (!rescuedByKind && classification.band === "non_invoice") {
     await updateDocument(tx, doc.id, {
       status: "exported_markdown",
       classifier: classification as unknown as Record<string, unknown>,
@@ -129,11 +153,15 @@ export const textLaneStage: StageHandler = async (tx, doc, ports) => {
   }
 
   // 4. Deterministic extraction: template lookup first, rule engine fills gaps.
-  const envelope = await extractDeterministic(tx, doc, positioned);
+  const envelope = withDocumentType(
+    await extractDeterministic(tx, doc, positioned),
+    classification.kind,
+  );
 
   await updateDocument(tx, doc.id, {
     status: "extracted",
     candidate: envelope,
+    documentType: classification.kind,
     classifier: classification as unknown as Record<string, unknown>,
     markdown,
     positionedDoc: positioned as unknown as Record<string, unknown>,

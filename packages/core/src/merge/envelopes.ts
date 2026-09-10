@@ -41,8 +41,9 @@ export function mergeEnvelopes(
       : undefined;
 
   const invoice: CandidateInvoice = {
-    invoiceNumber: pick("invoiceNumber"),
-    issueDate: pick("issueDate"),
+    documentType: pick("documentType"),
+    documentNumber: pick("documentNumber"),
+    documentDate: pick("documentDate"),
     dueDate: pick("dueDate"),
     currency: pick("currency"),
     locale: pick("locale"),

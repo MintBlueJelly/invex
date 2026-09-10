@@ -8,9 +8,10 @@ import type { CanonicalInvoice } from "../../src/schema/invoice";
 
 export function invoice(patch: Partial<CanonicalInvoice> = {}): CanonicalInvoice {
   return {
-    schemaVersion: 1,
-    invoiceNumber: "R-2026-0042",
-    issueDate: "2026-06-15",
+    schemaVersion: 2,
+    documentType: "invoice",
+    documentNumber: "R-2026-0042",
+    documentDate: "2026-06-15",
     dueDate: null,
     currency: "EUR",
     locale: null,

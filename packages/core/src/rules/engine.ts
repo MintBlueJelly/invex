@@ -9,6 +9,7 @@ import {
 } from "../positioned/model";
 import { extractLineItemsFromTable } from "../table/lineItems";
 import type { LineColumnKey } from "../template/types";
+import { canonicalPathFor } from "../template/apply";
 import { defaultLexicon, type Lexicon } from "./lexicon";
 
 /**
@@ -79,9 +80,14 @@ function approximateEnd(text: string, normTarget: string): number | null {
   return null;
 }
 
+/**
+ * @param requirePriced when true, only a table carrying an amount column
+ *   qualifies. See the two-pass loop in runRuleEngine for why that matters.
+ */
 function classifyColumns(
   table: ExtractedTable,
   lexicon: Lexicon,
+  requirePriced = true,
 ): Partial<Record<LineColumnKey, number>> | null {
   const columns: Partial<Record<LineColumnKey, number>> = {};
   const used = new Set<number>();
@@ -100,8 +106,12 @@ function classifyColumns(
     }
   }
   if (columns.description === undefined) return null;
-  if (columns.lineTotal === undefined && columns.unitPrice === undefined) return null;
-  return columns;
+  const priced = columns.lineTotal !== undefined || columns.unitPrice !== undefined;
+  if (requirePriced) return priced ? columns : null;
+  // Unpriced fallback: a description beside a quantity is still a goods table —
+  // it is exactly what a Lieferschein prints. Requiring one of the three keeps
+  // arbitrary two-column tables (addresses, terms) out.
+  return priced || columns.quantity !== undefined ? columns : null;
 }
 
 export function runRuleEngine(
@@ -142,7 +152,9 @@ export function runRuleEngine(
       }
       if (value !== null) {
         setHeaderField(invoice, key, value);
-        setMeta(key, hit, raw);
+        // fieldMeta is keyed by CANONICAL path, not by lexicon key — the two
+        // diverge for the fields the v2 schema renamed (template/apply.ts).
+        setMeta(canonicalPathFor(key), hit, raw);
         fieldsFound.push(key);
         found = true;
         break;
@@ -170,24 +182,32 @@ export function runRuleEngine(
   }
 
   // Line items: best column-classifiable table.
+  //
+  // Two passes, priced first. A document that has a priced table resolves in
+  // pass one exactly as it always did, so admitting unpriced tables cannot
+  // change which table an invoice picks — it only gives a document that prints
+  // no amounts at all (a Lieferschein) a second chance instead of none.
   let lineItemsFound = false;
-  for (const table of doc.tables) {
-    const columns = classifyColumns(table, lexicon);
-    if (!columns) continue;
-    const items = extractLineItemsFromTable(
-      table,
-      columns,
-      columns.position !== undefined ? "rowsWithoutPosNumber" : "none",
-      (s) => parseAmount(s),
-    );
-    if (items.length === 0) continue;
-    invoice.lineItems = items;
-    items.forEach((_, i) => {
-      fieldMeta[`lineItems.${i}`] = { source: "rules", confidence: 0.6 };
-    });
-    fieldsFound.push("lineItems");
-    lineItemsFound = true;
-    break;
+  for (const requirePriced of [true, false]) {
+    if (lineItemsFound) break;
+    for (const table of doc.tables) {
+      const columns = classifyColumns(table, lexicon, requirePriced);
+      if (!columns) continue;
+      const items = extractLineItemsFromTable(
+        table,
+        columns,
+        columns.position !== undefined ? "rowsWithoutPosNumber" : "none",
+        (s) => parseAmount(s),
+      );
+      if (items.length === 0) continue;
+      invoice.lineItems = items;
+      items.forEach((_, i) => {
+        fieldMeta[`lineItems.${i}`] = { source: "rules", confidence: 0.6 };
+      });
+      fieldsFound.push("lineItems");
+      lineItemsFound = true;
+      break;
+    }
   }
   if (!lineItemsFound) fieldsMissed.push("lineItems");
 
@@ -203,10 +223,10 @@ export function runRuleEngine(
 function setHeaderField(invoice: CandidateInvoice, key: HeaderKey, value: string): void {
   switch (key) {
     case "invoiceNumber":
-      invoice.invoiceNumber = value;
+      invoice.documentNumber = value;
       break;
     case "issueDate":
-      invoice.issueDate = value;
+      invoice.documentDate = value;
       break;
     case "dueDate":
       invoice.dueDate = value;

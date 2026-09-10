@@ -99,8 +99,8 @@ describe("the limit of reconstruction", () => {
     // approximation and not a reconstruction, and that only the tolerance hides it.
     const r = reconcile({
       invoice: {
-        invoiceNumber: "R-1",
-        issueDate: "2026-06-15",
+        documentNumber: "R-1",
+        documentDate: "2026-06-15",
         currency: "EUR",
         seller: { name: "X" },
         totals: { net: "12.59", tax: "2.27", gross: "14.86" },

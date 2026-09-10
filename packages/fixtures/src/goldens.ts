@@ -30,6 +30,12 @@ import { renderPdf } from "./render/toPdf";
 export interface GoldenSmoke {
   route?: "zugferd" | "text" | "image";
   terminalStatus?: string;
+  /**
+   * Whether the document's own numbers corroborated each other. False on a
+   * committed document means there was nothing to check — the priceless
+   * Lieferschein — so this pins the difference that terminalStatus alone hides.
+   */
+  arithmeticVerified?: boolean;
   /** Trace events that must appear somewhere in the document's history. */
   hasEvents?: string[];
   /** Trace events that must NOT appear — e.g. proving the GPU stayed cold. */

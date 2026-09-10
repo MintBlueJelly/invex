@@ -12,6 +12,7 @@ import {
 } from "drizzle-orm/pg-core";
 import type {
   CanonicalInvoice,
+  DocumentType,
   ExtractionEnvelope,
   ReconciliationResult,
 } from "@invex/core";
@@ -47,6 +48,14 @@ export const documents = pgTable(
     contentHash: text("content_hash").notNull(),
     status: text("status").$type<DocumentStatus>().notNull(),
     route: text("route").$type<LaneRoute>(),
+    /**
+     * Which document class this is (invoice, orderConfirmation, ...).
+     *
+     * Distinct from classifier.band, which is a confidence bucket. Plain text
+     * with a TS-side union, following route/status/source — this schema has no
+     * PG enums anywhere.
+     */
+    documentType: text("document_type").$type<DocumentType>(),
     /** 1-based page numbers of this segment within the parent PDF. */
     segmentPages: jsonb("segment_pages").$type<number[]>(),
     /** Classifier feature vector + score + band — logged on EVERY document (§5). */
@@ -56,6 +65,15 @@ export const documents = pgTable(
     positionedDoc: jsonb("positioned_doc").$type<Record<string, unknown>>(),
     result: jsonb("result").$type<CanonicalInvoice>(),
     markdown: text("markdown"),
+    /**
+     * Whether the document's own numbers actually corroborated each other.
+     *
+     * Null until reconciled. FALSE on a committed document means there was no
+     * arithmetic to do — a Lieferschein that prints no prices — not that a
+     * check failed. Without this, "committed" conflates "the numbers check out"
+     * with "there were no numbers".
+     */
+    arithmeticVerified: boolean("arithmetic_verified"),
     repairs: jsonb("repairs").$type<ReconciliationResult["repairs"]>(),
     violations: jsonb("violations").$type<ReconciliationResult["violations"]>(),
     vlmAttempted: boolean("vlm_attempted").notNull().default(false),

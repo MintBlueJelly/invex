@@ -122,9 +122,9 @@ describe("parseCiiToEnvelope — happy path", () => {
   it("maps a minimal well-formed CII document to the envelope", () => {
     const { invoice, fieldMeta } = parseCiiToEnvelope(buildCii());
 
-    expect(invoice.invoiceNumber).toBe("RE-2026-001");
+    expect(invoice.documentNumber).toBe("RE-2026-001");
     // format="102" is YYYYMMDD, the only date form CII actually uses on the wire.
-    expect(invoice.issueDate).toBe("2026-01-15");
+    expect(invoice.documentDate).toBe("2026-01-15");
     expect(invoice.currency).toBe("EUR");
     expect(invoice.seller?.name).toBe("ACME Buerobedarf GmbH");
     expect(invoice.totals).toEqual({ net: "200.00", tax: "38.00", gross: "238.00" });
@@ -133,7 +133,7 @@ describe("parseCiiToEnvelope — happy path", () => {
       { position: 1, description: "Bueromaterial", quantity: "2", unit: "C62", unitPrice: "100.00", taxRate: 19, lineTotal: "200.00" },
     ]);
 
-    expect(fieldMeta["invoiceNumber"]).toEqual({ source: "zugferd", confidence: 1 });
+    expect(fieldMeta["documentNumber"]).toEqual({ source: "zugferd", confidence: 1 });
     expect(fieldMeta["seller.name"]).toEqual({ source: "zugferd", confidence: 1 });
     expect(fieldMeta["lineItems.0"]).toEqual({ source: "zugferd", confidence: 1 });
     expect(fieldMeta["vatBreakdown.0"]).toEqual({ source: "zugferd", confidence: 1 });

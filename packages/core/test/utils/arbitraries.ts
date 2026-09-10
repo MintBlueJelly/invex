@@ -89,8 +89,8 @@ export function arbConsistentInvoice(): fc.Arbitrary<ConsistentInvoice> {
       const totals = { net: money(net), tax: money(tax), gross: money(net.plus(tax)) };
 
       const invoice: CandidateInvoice = {
-        invoiceNumber: "R-PROP-1",
-        issueDate: "2026-06-15",
+        documentNumber: "R-PROP-1",
+        documentDate: "2026-06-15",
         currency: "EUR",
         seller: { name: "Prop GmbH" },
         totals,

@@ -47,7 +47,7 @@ describe("human review API (briefing §7)", () => {
     const res = await env.app.inject({
       method: "PUT",
       url: `/api/review/${pendingId}`,
-      payload: { invoiceNumber: "" },
+      payload: { documentNumber: "" },
     });
     expect(res.statusCode).toBe(400);
     expect((res.json() as { issues: string[] }).issues.length).toBeGreaterThan(0);
@@ -66,7 +66,7 @@ describe("human review API (briefing §7)", () => {
 
     const doc = (await env.app.inject({ method: "GET", url: `/api/documents/${pendingId}` })).json() as Record<string, unknown>;
     expect(doc["status"]).toBe("committed");
-    expect((doc["result"] as CanonicalInvoice).totals.gross).toBe("1366.95");
+    expect((doc["result"] as CanonicalInvoice).totals?.gross).toBe("1366.95");
 
     // §7 feedback edge: the template anchors the vendor's alien idiom.
     const rows = await env.db.select().from(vendorTemplates).where(eq(vendorTemplates.ustIdNr, "DE811907980"));

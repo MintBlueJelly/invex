@@ -9,6 +9,7 @@ import {
   type ExtractionEnvelope,
 } from "@invex/core";
 import type { StageHandler } from "../machine";
+import { withDocumentType } from "./documentType";
 import { emitEvent, getPdf, updateDocument } from "../../db/repos/documents";
 import { recordEscalation } from "../../db/repos/escalations";
 import { resolveVendor } from "../../db/repos/templates";
@@ -34,7 +35,17 @@ export const imageLaneStage: StageHandler = async (tx, doc, ports) => {
     band: classification.band,
     score: classification.score,
     features: classification.features,
+    kind: classification.kind,
+    kindEvidence: classification.kindEvidence,
   });
+
+  // NOTE: no non_invoice -> Markdown exit here, deliberately. On Path C the
+  // band is computed over OCR output, so a low score can mean "we could not
+  // read it" as easily as "this is a letter" — the text gate reroutes garbage
+  // text layers to this lane precisely because they were unreadable. Exiting
+  // to Markdown on that evidence would silently export garbage as a finished
+  // result instead of sending it to a human. Routing here stays on vendor
+  // resolution; only the document class is carried through.
 
   const ids = extractVendorIds(positioned);
   const resolved = await resolveVendor(tx, {
@@ -64,7 +75,11 @@ export const imageLaneStage: StageHandler = async (tx, doc, ports) => {
     };
     await updateDocument(tx, doc.id, {
       status: "extracted",
-      candidate: mergeEnvelopes(applied.envelope, idEnvelope),
+      candidate: withDocumentType(
+        mergeEnvelopes(applied.envelope, idEnvelope),
+        classification.kind,
+      ),
+      documentType: classification.kind,
       classifier: classification as unknown as Record<string, unknown>,
       markdown,
       positionedDoc: positioned as unknown as Record<string, unknown>,

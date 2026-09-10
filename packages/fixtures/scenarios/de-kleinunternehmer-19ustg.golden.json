@@ -76,9 +76,10 @@
   },
   "expected": {
     "canonical": {
-      "schemaVersion": 1,
-      "invoiceNumber": "2026-014",
-      "issueDate": "2026-04-11",
+      "schemaVersion": 2,
+      "documentType": "invoice",
+      "documentNumber": "2026-014",
+      "documentDate": "2026-04-11",
       "dueDate": null,
       "currency": "EUR",
       "locale": null,
@@ -127,7 +128,8 @@
       "terminalStatus": "committed",
       "notEvents": [
         "vlm_called"
-      ]
+      ],
+      "arithmeticVerified": true
     }
   }
 }

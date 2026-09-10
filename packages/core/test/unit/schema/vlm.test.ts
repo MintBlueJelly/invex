@@ -1,14 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { vlmResultJsonSchema, zVlmResult } from "../../../src/schema/vlm";
 import { toVlmJsonSchema } from "../../../src/schema/jsonSchema";
-import { zCanonicalInvoice } from "../../../src/schema/invoice";
+import { zCanonicalInvoice, zCanonicalInvoiceShape } from "../../../src/schema/invoice";
 import { zMarkdownExport } from "../../../src/schema/markdown";
 import { knownBug } from "../../../../../test-utils/knownBug";
 
 const validInvoice = {
-  schemaVersion: 1,
-  invoiceNumber: "R-1",
-  issueDate: "2026-06-15",
+  schemaVersion: 2,
+  documentType: "invoice",
+  documentNumber: "R-1",
+  documentDate: "2026-06-15",
   dueDate: null,
   currency: "EUR",
   locale: "de-DE",
@@ -23,50 +24,98 @@ const validInvoice = {
 };
 
 describe("zVlmResult — the single VLM response contract (briefing §6)", () => {
-  it("accepts a well-formed invoice payload", () => {
-    const parsed = zVlmResult.safeParse({ isInvoice: true, invoice: validInvoice, markdown: null });
+  it("accepts a well-formed document payload", () => {
+    const parsed = zVlmResult.safeParse({
+      documentType: "invoice",
+      document: validInvoice,
+      markdown: null,
+    });
     expect(parsed.success).toBe(true);
   });
 
-  it("accepts a non-invoice payload carrying only markdown", () => {
-    const parsed = zVlmResult.safeParse({ isInvoice: false, invoice: null, markdown: "# some doc" });
+  it("accepts every document class the pipeline extracts", () => {
+    for (const t of ["invoice", "creditNote", "orderConfirmation", "deliveryNote", "quote"]) {
+      const parsed = zVlmResult.safeParse({
+        documentType: t,
+        document: { ...validInvoice, documentType: t },
+        markdown: null,
+      });
+      expect(parsed.success, t).toBe(true);
+    }
+  });
+
+  it("accepts a null documentType carrying only markdown (not a class we extract)", () => {
+    const parsed = zVlmResult.safeParse({
+      documentType: null,
+      document: null,
+      markdown: "# some doc",
+    });
     expect(parsed.success).toBe(true);
   });
 
-  it("rejects a payload missing isInvoice", () => {
-    const parsed = zVlmResult.safeParse({ invoice: null, markdown: "x" });
+  it("rejects a payload missing documentType", () => {
+    const parsed = zVlmResult.safeParse({ document: null, markdown: "x" });
+    expect(parsed.success).toBe(false);
+  });
+
+  it("rejects a documentType outside the five classes", () => {
+    const parsed = zVlmResult.safeParse({
+      documentType: "reminder",
+      document: null,
+      markdown: "x",
+    });
     expect(parsed.success).toBe(false);
   });
 
   // The stage handler (vlmEscalate.ts) throws a hard error for this exact shape
-  // ("classified as invoice but returned no invoice payload") — but that's an
-  // application-level check, not a schema one. The schema itself has no
-  // refinement tying isInvoice to invoice, so this combination parses cleanly.
-  it("schema-level: isInvoice true + invoice null is NOT rejected by zVlmResult itself", () => {
-    const parsed = zVlmResult.safeParse({ isInvoice: true, invoice: null, markdown: null });
+  // ("classified as X but returned no payload") — but that's an application-level
+  // check, not a schema one. The schema has no refinement tying the two together.
+  it("schema-level: a class with a null document is NOT rejected by zVlmResult itself", () => {
+    const parsed = zVlmResult.safeParse({
+      documentType: "invoice",
+      document: null,
+      markdown: null,
+    });
     expect(parsed.success).toBe(true);
   });
 });
 
 describe("vlmResultJsonSchema — what the VLM actually receives (packages/server vlmEscalate.ts)", () => {
-  it("emits a top-level object schema declaring isInvoice/invoice/markdown", () => {
+  it("emits a top-level object schema declaring documentType/document/markdown", () => {
     const schema = vlmResultJsonSchema();
     expect(schema).toMatchObject({ type: "object" });
     expect(Object.keys(schema["properties"] as Record<string, unknown>)).toEqual(
-      expect.arrayContaining(["isInvoice", "invoice", "markdown"]),
+      expect.arrayContaining(["documentType", "document", "markdown"]),
     );
   });
 
-  it("declares the invoice properties (invoiceNumber, totals, vatBreakdown, lineItems, seller) nested under invoice", () => {
+  // Constrained decoding only helps if the class list reaches the model as an
+  // enum it cannot step outside of.
+  it("constrains documentType to the five classes plus null", () => {
     const schema = vlmResultJsonSchema();
-    const invoiceSchema = (schema["properties"] as Record<string, { anyOf?: Array<Record<string, unknown>> }>)[
-      "invoice"
+    const dt = (schema["properties"] as Record<string, { anyOf?: Array<Record<string, unknown>> }>)[
+      "documentType"
     ];
-    // invoice is `.nullable()`, which zod emits as anyOf[object, null] rather than a bare object.
-    const objectBranch = invoiceSchema?.anyOf?.find((b) => b["type"] === "object");
+    const enumBranch = dt?.anyOf?.find((b) => Array.isArray(b["enum"]));
+    expect(enumBranch?.["enum"]).toEqual([
+      "invoice",
+      "creditNote",
+      "orderConfirmation",
+      "deliveryNote",
+      "quote",
+    ]);
+  });
+
+  it("declares the document properties (documentNumber, totals, vatBreakdown, lineItems, seller) nested under document", () => {
+    const schema = vlmResultJsonSchema();
+    const documentSchema = (schema["properties"] as Record<string, { anyOf?: Array<Record<string, unknown>> }>)[
+      "document"
+    ];
+    // document is `.nullable()`, which zod emits as anyOf[object, null] rather than a bare object.
+    const objectBranch = documentSchema?.anyOf?.find((b) => b["type"] === "object");
     expect(objectBranch).toBeDefined();
     expect(Object.keys(objectBranch!["properties"] as Record<string, unknown>)).toEqual(
-      expect.arrayContaining(["invoiceNumber", "totals", "vatBreakdown", "lineItems", "seller"]),
+      expect.arrayContaining(["documentNumber", "totals", "vatBreakdown", "lineItems", "seller"]),
     );
   });
 
@@ -101,9 +150,9 @@ describe("toVlmJsonSchema vs vlmResultJsonSchema — compatibility", () => {
     const standalone = toVlmJsonSchema();
     const nested = vlmResultJsonSchema();
     const invoiceBranch = (nested["properties"] as Record<string, { anyOf: Array<Record<string, unknown>> }>)[
-      "invoice"
+      "document"
     ]!.anyOf.find((b) => b["type"] === "object")!;
-    // Both are derived from zCanonicalInvoice, so their required/property sets
+    // Both are derived from zCanonicalInvoiceShape, so their required/property sets
     // must line up even though nothing in the codebase asserts this today.
     expect(Object.keys(standalone["properties"] as Record<string, unknown>).sort()).toEqual(
       Object.keys(invoiceBranch["properties"] as Record<string, unknown>).sort(),
@@ -174,16 +223,20 @@ describe("markdown.ts — zMarkdownExport", () => {
 
 describe("invoice.ts sub-schemas — negative cases (complementing invoice.test.ts)", () => {
   it("rejects money with 3+ decimal places", () => {
-    expect(zCanonicalInvoice.shape.totals.shape.net.safeParse("100.123").success).toBe(false);
+    expect(zCanonicalInvoiceShape.shape.totals.unwrap().shape.net.safeParse("100.123").success).toBe(
+      false,
+    );
   });
 
   it("allows negative money (credit notes / corrections are in-band, not rejected)", () => {
-    expect(zCanonicalInvoice.shape.totals.shape.net.safeParse("-100.00").success).toBe(true);
+    expect(zCanonicalInvoiceShape.shape.totals.unwrap().shape.net.safeParse("-100.00").success).toBe(
+      true,
+    );
   });
 
   it("rejects a currency code that isn't exactly 3 characters", () => {
-    expect(zCanonicalInvoice.shape.currency.safeParse("EU").success).toBe(false);
-    expect(zCanonicalInvoice.shape.currency.safeParse("EURO").success).toBe(false);
+    expect(zCanonicalInvoiceShape.shape.currency.safeParse("EU").success).toBe(false);
+    expect(zCanonicalInvoiceShape.shape.currency.safeParse("EURO").success).toBe(false);
   });
 
   it("rejects a countryCode that isn't exactly 2 characters", () => {
@@ -192,8 +245,16 @@ describe("invoice.ts sub-schemas — negative cases (complementing invoice.test.
     expect(zCountryCode.safeParse("D").success).toBe(false);
   });
 
-  it("rejects an empty vatBreakdown array", () => {
-    expect(zCanonicalInvoice.shape.vatBreakdown.safeParse([]).success).toBe(false);
+  // v2 moved this from the shape to the per-class refinement: an empty
+  // breakdown is structurally fine (a priceless Lieferschein has one) and is
+  // rejected only for the classes whose profile requires VAT.
+  it("accepts an empty vatBreakdown structurally, but rejects it for an invoice", () => {
+    expect(zCanonicalInvoiceShape.shape.vatBreakdown.safeParse([]).success).toBe(true);
+    const asInvoice = zCanonicalInvoice.safeParse({
+      ...validInvoice,
+      vatBreakdown: [],
+    });
+    expect(asInvoice.success).toBe(false);
   });
 
   it("rejects an empty lineItems array", () => {
@@ -230,15 +291,15 @@ describe("invoice.ts sub-schemas — negative cases (complementing invoice.test.
 
 describe("INVEX-040 — zIsoDate has no calendar validation", () => {
   it("[current] accepts calendar-impossible dates as valid ISO dates", () => {
-    expect(zCanonicalInvoice.shape.issueDate.safeParse("2026-13-45").success).toBe(true);
-    expect(zCanonicalInvoice.shape.issueDate.safeParse("2026-02-30").success).toBe(true);
+    expect(zCanonicalInvoice.shape.documentDate.safeParse("2026-13-45").success).toBe(true);
+    expect(zCanonicalInvoice.shape.documentDate.safeParse("2026-02-30").success).toBe(true);
   });
 
   knownBug("INVEX-040", "zIsoDate accepts calendar-impossible dates").it(
     "rejects a hallucinated impossible issueDate before it reaches CanonicalInvoice",
     () => {
-      expect(zCanonicalInvoice.shape.issueDate.safeParse("2026-13-45").success).toBe(false);
-      expect(zCanonicalInvoice.shape.issueDate.safeParse("2026-02-30").success).toBe(false);
+      expect(zCanonicalInvoice.shape.documentDate.safeParse("2026-13-45").success).toBe(false);
+      expect(zCanonicalInvoice.shape.documentDate.safeParse("2026-02-30").success).toBe(false);
     },
   );
 });

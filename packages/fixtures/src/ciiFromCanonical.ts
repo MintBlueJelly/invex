@@ -1,4 +1,5 @@
 import type { CanonicalInvoice } from "@invex/core";
+import { ciiTypeCodeFor } from "@invex/core";
 
 /**
  * Serialize a hand-authored CanonicalInvoice to EN 16931 CII XML.
@@ -101,10 +102,19 @@ export function serializeCiiFromCanonical(inv: CanonicalInvoice, defects: CiiDef
     )
     .join("");
 
+  // CII's monetary summation is not optional, so a class that carries no
+  // amounts (a priceless Lieferschein) has no CII rendition at all.
+  const totals = inv.totals;
+  if (totals === null) {
+    throw new Error(
+      "cannot render CII for a document with no totals (documentType " + inv.documentType + ")",
+    );
+  }
+
   const taxTotal = defects.repeatTaxTotal
-    ? `<ram:TaxTotalAmount currencyID="${inv.currency}">${inv.totals.tax}</ram:TaxTotalAmount>` +
-      `<ram:TaxTotalAmount currencyID="EUR">${inv.totals.tax}</ram:TaxTotalAmount>`
-    : `<ram:TaxTotalAmount currencyID="${inv.currency}">${inv.totals.tax}</ram:TaxTotalAmount>`;
+    ? `<ram:TaxTotalAmount currencyID="${inv.currency}">${totals.tax}</ram:TaxTotalAmount>` +
+      `<ram:TaxTotalAmount currencyID="EUR">${totals.tax}</ram:TaxTotalAmount>`
+    : `<ram:TaxTotalAmount currencyID="${inv.currency}">${totals.tax}</ram:TaxTotalAmount>`;
 
   const dueDate = inv.dueDate
     ? `<ram:SpecifiedTradePaymentTerms><ram:DueDateDateTime><udt:DateTimeString format="102">${ciiDate(inv.dueDate)}</udt:DateTimeString></ram:DueDateDateTime></ram:SpecifiedTradePaymentTerms>`
@@ -113,9 +123,9 @@ export function serializeCiiFromCanonical(inv: CanonicalInvoice, defects: CiiDef
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <rsm:CrossIndustryInvoice xmlns:rsm="urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100" xmlns:ram="urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100" xmlns:udt="urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100">
   <rsm:ExchangedDocument>
-    <ram:ID>${esc(inv.invoiceNumber)}</ram:ID>
-    <ram:TypeCode>380</ram:TypeCode>
-    <ram:IssueDateTime><udt:DateTimeString format="102">${ciiDate(inv.issueDate)}</udt:DateTimeString></ram:IssueDateTime>
+    <ram:ID>${esc(inv.documentNumber)}</ram:ID>
+    <ram:TypeCode>${ciiTypeCodeFor(inv.documentType)}</ram:TypeCode>
+    <ram:IssueDateTime><udt:DateTimeString format="102">${ciiDate(inv.documentDate)}</udt:DateTimeString></ram:IssueDateTime>
   </rsm:ExchangedDocument>
   <rsm:SupplyChainTradeTransaction>${lines}
     <ram:ApplicableHeaderTradeAgreement>
@@ -133,11 +143,11 @@ export function serializeCiiFromCanonical(inv: CanonicalInvoice, defects: CiiDef
     <ram:ApplicableHeaderTradeSettlement>
       <ram:InvoiceCurrencyCode>${inv.currency}</ram:InvoiceCurrencyCode>${ibans}${taxes}${dueDate}
       <ram:SpecifiedTradeSettlementHeaderMonetarySummation>
-        <ram:LineTotalAmount>${inv.totals.net}</ram:LineTotalAmount>
-        <ram:TaxBasisTotalAmount>${inv.totals.net}</ram:TaxBasisTotalAmount>
+        <ram:LineTotalAmount>${totals.net}</ram:LineTotalAmount>
+        <ram:TaxBasisTotalAmount>${totals.net}</ram:TaxBasisTotalAmount>
         ${taxTotal}
-        <ram:GrandTotalAmount>${inv.totals.gross}</ram:GrandTotalAmount>
-        <ram:DuePayableAmount>${inv.totals.gross}</ram:DuePayableAmount>
+        <ram:GrandTotalAmount>${totals.gross}</ram:GrandTotalAmount>
+        <ram:DuePayableAmount>${totals.gross}</ram:DuePayableAmount>
       </ram:SpecifiedTradeSettlementHeaderMonetarySummation>
     </ram:ApplicableHeaderTradeSettlement>
   </rsm:SupplyChainTradeTransaction>

@@ -4,9 +4,10 @@ import { toVlmJsonSchema, zCanonicalInvoice } from "../../../src/index";
 describe("canonical schema", () => {
   it("round-trips a valid invoice", () => {
     const invoice = {
-      schemaVersion: 1,
-      invoiceNumber: "R-1",
-      issueDate: "2026-06-15",
+      schemaVersion: 2,
+      documentType: "invoice",
+      documentNumber: "R-1",
+      documentDate: "2026-06-15",
       dueDate: null,
       currency: "EUR",
       locale: "de-DE",
@@ -33,7 +34,7 @@ describe("canonical schema", () => {
     expect(schema).toHaveProperty("type", "object");
     const props = schema["properties"] as Record<string, unknown>;
     expect(Object.keys(props)).toEqual(
-      expect.arrayContaining(["invoiceNumber", "totals", "vatBreakdown", "lineItems", "seller"]),
+      expect.arrayContaining(["documentType", "documentNumber", "totals", "vatBreakdown", "lineItems", "seller"]),
     );
   });
 

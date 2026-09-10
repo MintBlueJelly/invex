@@ -6,6 +6,7 @@ import type {
   ExtractionEnvelope,
   FieldMeta,
 } from "../schema/candidate";
+import { documentTypeFromCiiTypeCode } from "./typeCode";
 
 /**
  * UN/CEFACT CII (ZUGfERD / Factur-X) → extraction envelope. Deliberately a
@@ -98,10 +99,16 @@ export function parseCiiToEnvelope(xml: string): ExtractionEnvelope {
     fieldMeta[path] = { source: "zugferd", confidence: 1, ...(rawText ? { rawText } : {}) };
   };
 
-  invoice.invoiceNumber = text(at(exchanged, "ID"));
-  if (invoice.invoiceNumber) meta("invoiceNumber");
-  invoice.issueDate = ciiDate(at(exchanged, "IssueDateTime", "DateTimeString"));
-  if (invoice.issueDate) meta("issueDate");
+  // BT-3 (UNTDID 1001). Path A never runs the classifier, so this is the only
+  // document-class signal available on this lane; an unmapped or absent code
+  // falls back to "invoice" (zugferd/typeCode.ts).
+  invoice.documentType = documentTypeFromCiiTypeCode(text(at(exchanged, "TypeCode")));
+  meta("documentType", text(at(exchanged, "TypeCode")) ?? undefined);
+
+  invoice.documentNumber = text(at(exchanged, "ID"));
+  if (invoice.documentNumber) meta("documentNumber");
+  invoice.documentDate = ciiDate(at(exchanged, "IssueDateTime", "DateTimeString"));
+  if (invoice.documentDate) meta("documentDate");
 
   // Seller
   const seller = node(at(agreement, "SellerTradeParty"));

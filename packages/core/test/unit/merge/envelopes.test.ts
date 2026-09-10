@@ -29,13 +29,13 @@ function meta(source: FieldSource, confidence: number): FieldMeta {
 
 describe("mergeEnvelopes — scalar precedence", () => {
   it("primary's value wins when both sources have one (template over rule engine)", () => {
-    const primary = envelope({ invoiceNumber: "RE-1" });
-    const secondary = envelope({ invoiceNumber: "RE-2" });
-    expect(mergeEnvelopes(primary, secondary).invoice.invoiceNumber).toBe("RE-1");
+    const primary = envelope({ documentNumber: "RE-1" });
+    const secondary = envelope({ documentNumber: "RE-2" });
+    expect(mergeEnvelopes(primary, secondary).invoice.documentNumber).toBe("RE-1");
   });
 
   it("secondary fills in a field the primary never touched", () => {
-    const primary = envelope({ invoiceNumber: "RE-1" });
+    const primary = envelope({ documentNumber: "RE-1" });
     const secondary = envelope({ currency: "EUR" });
     expect(mergeEnvelopes(primary, secondary).invoice.currency).toBe("EUR");
   });
@@ -129,15 +129,15 @@ describe("mergeEnvelopes — lineItems and vatBreakdown are wholesale, not merge
 describe("mergeEnvelopes — fieldMeta provenance", () => {
   it("primary's provenance wins key-wise, secondary's fills keys primary never set", () => {
     const primary = envelope(
-      { invoiceNumber: "RE-1" },
-      { invoiceNumber: meta("template", 0.95) },
+      { documentNumber: "RE-1" },
+      { documentNumber: meta("template", 0.95) },
     );
     const secondary = envelope(
-      { invoiceNumber: "RE-2", currency: "EUR" },
-      { invoiceNumber: meta("rules", 0.4), currency: meta("rules", 0.6) },
+      { documentNumber: "RE-2", currency: "EUR" },
+      { documentNumber: meta("rules", 0.4), currency: meta("rules", 0.6) },
     );
     const result = mergeEnvelopes(primary, secondary);
-    expect(result.fieldMeta.invoiceNumber).toEqual(meta("template", 0.95));
+    expect(result.fieldMeta.documentNumber).toEqual(meta("template", 0.95));
     expect(result.fieldMeta.currency).toEqual(meta("rules", 0.6));
   });
 
@@ -170,8 +170,8 @@ describe("mergeEnvelopes — key presence on the result object", () => {
     const result = mergeEnvelopes(primary, secondary).invoice;
     // pick()-based fields: key is always assigned, JSON.stringify would drop
     // the value but the key exists on the object either way.
-    expect("invoiceNumber" in result).toBe(true);
-    expect(result.invoiceNumber).toBeUndefined();
+    expect("documentNumber" in result).toBe(true);
+    expect(result.documentNumber).toBeUndefined();
     expect("lineItems" in result).toBe(true);
     expect(result.lineItems).toBeUndefined();
     // totals/seller are built via a conditional spread — absent from both
@@ -188,8 +188,8 @@ describe("mergeEnvelopes — empty envelope combined with a full one, and self-m
   // key/`undefined` on the other and (correctly) call that a mismatch.
   const full: ExtractionEnvelope = envelope(
     {
-      invoiceNumber: "RE-42",
-      issueDate: "2026-07-01",
+      documentNumber: "RE-42",
+      documentDate: "2026-07-01",
       dueDate: "2026-07-31",
       currency: "EUR",
       locale: "de-DE",
@@ -206,7 +206,7 @@ describe("mergeEnvelopes — empty envelope combined with a full one, and self-m
       lineItems: [{ description: "Aktenvernichter", quantity: "1" }],
       paymentTerms: "30 Tage netto",
     },
-    { invoiceNumber: meta("template", 0.95) },
+    { documentNumber: meta("template", 0.95) },
   );
   const empty: ExtractionEnvelope = envelope({});
 

@@ -54,9 +54,10 @@ function sampleDoc(): PositionedTextDocument {
 
 function sampleInvoice(): CanonicalInvoice {
   return {
-    schemaVersion: 1,
-    invoiceNumber: "R-2026-0042",
-    issueDate: "2026-06-15",
+    schemaVersion: 2,
+    documentType: "invoice",
+    documentNumber: "R-2026-0042",
+    documentDate: "2026-06-15",
     dueDate: null,
     currency: "EUR",
     locale: "de-DE",
@@ -126,14 +127,14 @@ describe("template application (fixed point: induce → apply → reconcile)", (
     const { envelope, fieldsHit } = applyTemplate(template, doc);
     expect(fieldsHit).toContain("invoiceNumber");
     expect(fieldsHit).toContain("lineItems");
-    expect(envelope.invoice.invoiceNumber).toBe("R-2026-0042");
-    expect(envelope.invoice.issueDate).toBe("2026-06-15");
+    expect(envelope.invoice.documentNumber).toBe("R-2026-0042");
+    expect(envelope.invoice.documentDate).toBe("2026-06-15");
     expect(envelope.invoice.totals?.gross).toBe("1366.95");
     expect(envelope.invoice.lineItems).toHaveLength(3);
     expect(envelope.invoice.lineItems?.[1]?.description).toBe(
       "Wartungsvertrag Bürogeräte, Laufzeit 12 Monate",
     );
-    expect(envelope.fieldMeta["invoiceNumber"]?.source).toBe("template");
+    expect(envelope.fieldMeta["documentNumber"]?.source).toBe("template");
 
     // The solver closes the loop: template extraction + repairs = the original.
     const result = reconcile(envelope);

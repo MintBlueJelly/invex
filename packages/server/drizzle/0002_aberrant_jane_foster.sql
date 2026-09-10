@@ -1,0 +1,11 @@
+ALTER TABLE "documents" ADD COLUMN "arithmetic_verified" boolean;
+--> statement-breakpoint
+-- Deliberately NOT backfilled.
+--
+-- The flag records whether a document's own numbers corroborated each other on
+-- the EXTRACTED values, before any repair derived one of them. That is not
+-- recoverable after the fact: a row that committed may have satisfied every
+-- constraint only post-repair, and nothing persisted distinguishes the two.
+-- Backfilling 'true' would overclaim exactly the property the column exists to
+-- state honestly, so pre-existing rows keep NULL, meaning "unknown -- reconciled
+-- before this flag existed". Re-ingesting a document populates it.

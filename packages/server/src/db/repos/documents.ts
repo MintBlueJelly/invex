@@ -6,6 +6,7 @@ import {
   documents,
   type DocumentStatus,
 } from "../schema";
+import type { DocumentType } from "@invex/core";
 
 export type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 export type DbOrTx = Db | Tx;
@@ -78,10 +79,22 @@ export async function getPdf(db: DbOrTx, documentId: string): Promise<Uint8Array
 
 export async function listDocuments(
   db: Db,
-  filter: { status?: DocumentStatus; limit: number },
+  filter: {
+    status?: DocumentStatus;
+    documentType?: DocumentType;
+    arithmeticVerified?: boolean;
+    limit: number;
+  },
 ): Promise<DocumentRow[]> {
+  const where = [
+    filter.status ? eq(documents.status, filter.status) : undefined,
+    filter.documentType ? eq(documents.documentType, filter.documentType) : undefined,
+    filter.arithmeticVerified !== undefined
+      ? eq(documents.arithmeticVerified, filter.arithmeticVerified)
+      : undefined,
+  ].filter((c) => c !== undefined);
   const base = db.select().from(documents);
-  const query = filter.status ? base.where(eq(documents.status, filter.status)) : base;
+  const query = where.length > 0 ? base.where(and(...where)) : base;
   return query.orderBy(desc(documents.createdAt)).limit(filter.limit);
 }
 

@@ -123,12 +123,12 @@ describe("Path B — text lane", () => {
     const doc = await getDoc(id);
     expect(doc["status"]).toBe("committed");
     const result = doc["result"] as {
-      invoiceNumber: string;
+      documentNumber: string;
       totals: Record<string, string>;
       lineItems: { description: string; taxRate: number | null }[];
       seller: { name: string | null; ustIdNr: string | null; ibans: string[] };
     };
-    expect(result.invoiceNumber).toBe(wantStandard.invoiceNumber);
+    expect(result.documentNumber).toBe(wantStandard.documentNumber);
     expect(result.totals).toEqual(wantStandard.totals);
     expect(result.lineItems).toHaveLength(wantStandard.lineItems.length);
     expect(result.lineItems[1]?.description).toBe(wantStandard.lineItems[1]!.description);
@@ -161,7 +161,7 @@ describe("Path B — text lane", () => {
 
     const doc = await getDoc(id);
     expect(doc["status"]).toBe("committed");
-    expect((doc["result"] as { invoiceNumber: string }).invoiceNumber).toBe("R-2026-0099");
+    expect((doc["result"] as { documentNumber: string }).documentNumber).toBe("R-2026-0099");
 
     const events = await getEvents(id);
     const vendor = events.find((e) => e.event === "vendor_resolved");
@@ -225,7 +225,7 @@ describe("Path B — text lane", () => {
     expect(children.every((c) => c.status === "committed")).toBe(true);
 
     const numbers = await Promise.all(
-      children.map(async (c) => ((await getDoc(c.id))["result"] as { invoiceNumber: string }).invoiceNumber),
+      children.map(async (c) => ((await getDoc(c.id))["result"] as { documentNumber: string }).documentNumber),
     );
     expect(numbers.sort()).toEqual(["R-A-1", "R-B-2"]);
   });

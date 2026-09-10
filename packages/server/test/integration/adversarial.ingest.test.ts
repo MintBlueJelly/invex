@@ -206,7 +206,7 @@ describe("adversarial corpus — ingest-level guards (not just the unit-level ra
     // bans reaching for it from packages/server/test — the oracle-independence
     // guard); makeMultiXmlAttachmentPdf() is free to use it internally since
     // packages/fixtures/src/generators/ isn't in that guard's list.
-    expect((doc.result as { invoiceNumber: string }).invoiceNumber).toBe("R-2026-0042");
+    expect((doc.result as { documentNumber: string }).documentNumber).toBe("R-2026-0042");
   });
 
   it("a factur-x.xml attachment that is actually PNG bytes falls through instead of hard-erroring", async ({

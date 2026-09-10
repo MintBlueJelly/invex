@@ -25,17 +25,36 @@ const DATE = "\\d{1,4}[./-]\\s?\\d{1,2}[./-]\\s?\\d{1,4}";
 
 export const defaultLexicon: Lexicon = {
   header: {
+    // The KEY is template/lexicon vocabulary and deliberately did not follow the
+    // canonical schema's v2 rename; it maps to invoice.documentNumber via
+    // template/apply.ts setField. The labels cover every document class, since
+    // an Auftragsbestätigung's number is the same field to everything
+    // downstream. Longer labels first: findLabelHits takes the first match, and
+    // "Rechnung" would otherwise swallow "Rechnungsnummer".
     invoiceNumber: {
       labels: [
         "Rechnungsnummer", "Rechnungs-Nr", "Rechnung Nr", "Rechnungsnr", "RE-Nr", "Re.-Nr",
-        "Beleg-Nr", "Belegnummer", "Invoice No", "Invoice Number", "Invoice #", "Rechnung",
+        "Auftragsbestätigungs-Nr", "Auftragsbestätigungsnummer", "Bestellbestätigungs-Nr",
+        "Auftragsnummer", "Auftrags-Nr", "AB-Nr",
+        "Lieferscheinnummer", "Lieferschein-Nr", "LS-Nr",
+        "Angebotsnummer", "Angebots-Nr", "Gutschriftsnummer", "Gutschrift-Nr", "GS-Nr",
+        "Bestellnummer", "Bestell-Nr", "Vorgangsnummer", "Vorgangs-Nr", "Dokumentnummer",
+        "Beleg-Nr", "Belegnummer",
+        "Order No", "Order Number", "Delivery Note No", "Quotation No", "Credit Note No",
+        "Invoice No", "Invoice Number", "Invoice #", "Rechnung",
       ],
       // Must contain a digit; tolerates letter-dash prefixes ("R-A-1", "RE/2026/17").
       valuePattern: "[A-Za-z0-9][A-Za-z0-9\\-/._]{0,30}\\d[\\dA-Za-z\\-/._]*",
     },
+    // Maps to invoice.documentDate. Bare "Datum"/"Date" stay LAST: every class
+    // prints them, so they are the fallback after a class-specific label.
     issueDate: {
       labels: [
-        "Rechnungsdatum", "Belegdatum", "Datum", "Ausstellungsdatum", "Invoice Date", "Date of Issue", "Date",
+        "Rechnungsdatum", "Belegdatum", "Ausstellungsdatum",
+        "Auftragsbestätigungsdatum", "Auftragsdatum", "Bestätigungsdatum",
+        "Lieferscheindatum", "Lieferdatum", "Angebotsdatum", "Gutschriftsdatum", "Bestelldatum",
+        "Invoice Date", "Date of Issue", "Order Date", "Delivery Date", "Quotation Date",
+        "Datum", "Date",
       ],
       valuePattern: DATE,
     },

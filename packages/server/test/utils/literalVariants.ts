@@ -11,14 +11,14 @@ import type { LiteralInvoiceDoc } from "@invex/fixtures";
  */
 export function withInvoiceNumber(
   base: LiteralInvoiceDoc,
-  invoiceNumber: string,
-  issueDate?: string,
+  documentNumber: string,
+  documentDate?: string,
 ): LiteralInvoiceDoc {
   return {
     ...base,
     headerFields: base.headerFields.map((f) => {
-      if (f.labelText === "Rechnungs-Nr.") return { ...f, valueText: invoiceNumber };
-      if (issueDate && f.labelText === "Rechnungsdatum") return { ...f, valueText: issueDate };
+      if (f.labelText === "Rechnungs-Nr.") return { ...f, valueText: documentNumber };
+      if (documentDate && f.labelText === "Rechnungsdatum") return { ...f, valueText: documentDate };
       return f;
     }),
   };

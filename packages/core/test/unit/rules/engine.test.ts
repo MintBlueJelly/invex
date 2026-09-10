@@ -12,7 +12,7 @@ import { doc, line, table } from "../../utils/positionedBuilders";
 describe("runRuleEngine — invoice number", () => {
   it("reads a properly labelled invoice number", () => {
     const d = doc([line("Rechnungsnummer R-2026-0042", { y: 0.1 })]);
-    expect(runRuleEngine(d).envelope.invoice.invoiceNumber).toBe("R-2026-0042");
+    expect(runRuleEngine(d).envelope.invoice.documentNumber).toBe("R-2026-0042");
   });
 
   it("[current] a bare 'Rechnung' label captures the date as the invoice number", () => {
@@ -20,13 +20,13 @@ describe("runRuleEngine — invoice number", () => {
     // even while the pin below still "passes". See lexicon.ts:31 — bare
     // "Rechnung" is an invoiceNumber label, and the valuePattern accepts dots.
     const d = doc([line("Rechnung 12.06.2026", { y: 0.1 })]);
-    expect(runRuleEngine(d).envelope.invoice.invoiceNumber).toBe("12.06.2026");
+    expect(runRuleEngine(d).envelope.invoice.documentNumber).toBe("12.06.2026");
   });
 
   knownBug("INVEX-012", "bare 'Rechnung' is an invoiceNumber label and the pattern accepts dots")
     .it("does not mistake a date for an invoice number", () => {
       const d = doc([line("Rechnung 12.06.2026", { y: 0.1 })]);
-      expect(runRuleEngine(d).envelope.invoice.invoiceNumber).not.toBe("12.06.2026");
+      expect(runRuleEngine(d).envelope.invoice.documentNumber).not.toBe("12.06.2026");
     });
 });
 
@@ -42,8 +42,8 @@ describe("runRuleEngine — header field extraction", () => {
     ]);
     const { envelope, fieldsFound, fieldsMissed } = runRuleEngine(d);
     expect(envelope.invoice).toMatchObject({
-      invoiceNumber: "RE-2026-001",
-      issueDate: "2026-03-01",
+      documentNumber: "RE-2026-001",
+      documentDate: "2026-03-01",
       dueDate: "2026-03-15",
       totals: { net: "1000.00", tax: "190.00", gross: "1190.00" },
     });
@@ -55,7 +55,7 @@ describe("runRuleEngine — header field extraction", () => {
 
   it("records provenance for a header field, not just its value", () => {
     const d = doc([line("Rechnungsnummer RE-2026-001", { y: 0.1 })]);
-    const meta = runRuleEngine(d).envelope.fieldMeta["invoiceNumber"];
+    const meta = runRuleEngine(d).envelope.fieldMeta["documentNumber"];
     expect(meta).toMatchObject({ source: "rules", confidence: 0.65, rawText: "RE-2026-001" });
     expect(meta?.anchor?.page).toBe(1);
   });
@@ -76,7 +76,7 @@ describe("runRuleEngine — label matching is startsWith-anchored", () => {
     // with the label.
     const d = doc([line("Ihre Rechnungsnummer: RE-001", { y: 0.1 })]);
     const { envelope, fieldsMissed } = runRuleEngine(d);
-    expect(envelope.invoice.invoiceNumber).toBeUndefined();
+    expect(envelope.invoice.documentNumber).toBeUndefined();
     expect(fieldsMissed).toContain("invoiceNumber");
   });
 
@@ -104,7 +104,7 @@ describe("runRuleEngine — valuePattern enforcement", () => {
   it("declines an invoice number label whose remainder has no digit", () => {
     const d = doc([line("Rechnungsnummer ABCDEF", { y: 0.1 })]);
     const { envelope, fieldsMissed } = runRuleEngine(d);
-    expect(envelope.invoice.invoiceNumber).toBeUndefined();
+    expect(envelope.invoice.documentNumber).toBeUndefined();
     expect(fieldsMissed).toContain("invoiceNumber");
   });
 

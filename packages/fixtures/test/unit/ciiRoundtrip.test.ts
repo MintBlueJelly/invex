@@ -13,9 +13,26 @@ import { loadGolden, loadGoldens } from "../../src/goldens";
  * makes the assertion about `parseCiiToEnvelope` instead.
  */
 
-const invoiceGoldens = loadGoldens().filter((g) => g.expected.canonical !== null);
+/**
+ * Priced goldens only. CII's monetary summation is not optional, so a class
+ * that carries no amounts (a priceless Lieferschein) has no CII rendition to
+ * round-trip at all — serializeCiiFromCanonical throws on it by design. The
+ * exclusion is by SHAPE, not by id, so a future priceless golden is covered
+ * without editing this line, and the guard below keeps it honest.
+ */
+const invoiceGoldens = loadGoldens().filter(
+  (g) => g.expected.canonical !== null && g.expected.canonical.totals !== null,
+);
 
 describe("CII round-trip over the golden corpus", () => {
+  it("refuses to serialize a document with no totals rather than inventing them", () => {
+    const priceless = loadGoldens().find(
+      (g) => g.expected.canonical !== null && g.expected.canonical.totals === null,
+    );
+    expect(priceless, "expected at least one priceless golden in the corpus").toBeDefined();
+    expect(() => serializeCiiFromCanonical(priceless!.expected.canonical!)).toThrow(/no totals/);
+  });
+
   it.each(invoiceGoldens.map((g) => [g.id, g] as const))(
     "%s: parses back to the hand-authored canonical",
     (_id, g) => {
@@ -23,9 +40,12 @@ describe("CII round-trip over the golden corpus", () => {
       const result = reconcile(parseCiiToEnvelope(serializeCiiFromCanonical(inv)));
 
       expect(result.status, JSON.stringify(result.violations)).toBe("reconciled");
-      expect(result.invoice?.invoiceNumber).toBe(inv.invoiceNumber);
-      expect(result.invoice?.issueDate).toBe(inv.issueDate);
+      expect(result.invoice?.documentNumber).toBe(inv.documentNumber);
+      expect(result.invoice?.documentDate).toBe(inv.documentDate);
       expect(result.invoice?.totals).toEqual(inv.totals);
+      // BT-3 survives the round trip, so a credit note does not come back as
+      // an invoice (zugferd/typeCode.ts).
+      expect(result.invoice?.documentType).toBe(inv.documentType);
       expect(result.invoice?.vatBreakdown).toEqual(inv.vatBreakdown);
       expect(result.invoice?.lineItems.map((l) => l.description)).toEqual(
         inv.lineItems.map((l) => l.description),
@@ -40,7 +60,7 @@ describe("CII round-trip over the golden corpus", () => {
     const envelope = parseCiiToEnvelope(
       serializeCiiFromCanonical(loadGolden("de-standard-19").expected.canonical!),
     );
-    expect(envelope.fieldMeta["invoiceNumber"]?.source).toBe("zugferd");
+    expect(envelope.fieldMeta["documentNumber"]?.source).toBe("zugferd");
     expect(envelope.fieldMeta["totals.gross"]?.source).toBe("zugferd");
   });
 
