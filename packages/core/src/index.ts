@@ -50,5 +50,8 @@ export {
   type ClassifierConfigCore,
 } from "./classify/classifier";
 
+// Keyword-matching text fold (diacritics/ß, separator-preserving)
+export { foldText, spellingVariants } from "./text/fold";
+
 // Envelope merge
 export { mergeEnvelopes } from "./merge/envelopes";
