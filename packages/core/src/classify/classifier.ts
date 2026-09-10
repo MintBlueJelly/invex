@@ -1,7 +1,10 @@
 import { parseAmount } from "../parsing/amounts";
 import { isValidUstIdNr } from "../vendor/checksums";
-import { normalizeLabel, type PositionedTextDocument } from "../positioned/model";
+import type { PositionedTextDocument } from "../positioned/model";
 import { parseDateToIso } from "../parsing/dates";
+import { foldText } from "../text/fold";
+import { detectKind, type KindEvidence } from "./kind";
+import type { DocumentType } from "../schema/documentType";
 
 /**
  * Weighted-feature-score classifier (briefing §5). No trained model in MVP:
@@ -21,27 +24,44 @@ export interface ClassificationResult {
   features: Record<string, 0 | 1>;
   score: number;
   band: ClassifierBand;
+  /** Which document class the heading announces, if any (classify/kind.ts). */
+  kind: DocumentType | null;
+  kindEvidence: KindEvidence;
 }
 
 type Feature = (doc: PositionedTextDocument) => boolean;
 
-/** F1: "Rechnung"/"Invoice" in a heading position. */
-const f1HeadingKeyword: Feature = (doc) =>
-  doc.lines.some((l) => {
-    const isHeadingTag = l.tag === "section_header" || l.tag === "title";
-    const isTop = l.page === 1 && l.bbox[1] < 0.25;
-    return (
-      (isHeadingTag || isTop) &&
-      /\b(rechnung|invoice|gutschrift|credit\s?note)\b/i.test(l.text) &&
-      l.text.trim().length < 60
-    );
-  });
+/**
+ * F1: a recognised document-class word in a heading position.
+ *
+ * Delegates to detectKind so the classifier and the kind detector share one
+ * keyword table and cannot drift apart. The feature's MEANING widened from "is
+ * an invoice heading" to "is a structured-commercial-document heading"; its key
+ * and weight are unchanged on purpose (calibration continuity, briefing §11).
+ */
+const f1HeadingKeyword: Feature = (doc) => detectKind(doc).kind !== null;
 
-/** F2: invoice-number pattern adjacent to a number label. */
+/**
+ * A number label for any of the five document classes. The short forms
+ * ("AB-Nr.") are safe only because nr/nummer is required in the same match — a
+ * bare \bab\b would fire on "ab 01.01.2026" and "ab Werk".
+ */
+const DOCUMENT_NUMBER_LABEL =
+  /(rechnungs?|auftrags?|auftragsbestae?tigungs?|bestell|liefer|lieferschein|angebots?|gutschrifts?|beleg|dokument|vorgangs?|invoice|order|delivery|quote|quotation|document)\s?-?\s?(nr|nummer|no|number|#)|\b(ab|ls|an|re|gs|kv|best)\s?[-.]?\s?(nr|nummer)\b/;
+
+/**
+ * F2: a document-number pattern adjacent to a number label.
+ *
+ * Key kept as F2_invoiceNumberPattern although it now covers every document
+ * class: the persisted feature vectors are the labeled sample the band
+ * calibration is waiting for (briefing §11), and renaming would split that
+ * corpus in half. Read the F-ids as opaque calibration identifiers, not
+ * descriptions.
+ */
 const f2InvoiceNumberPattern: Feature = (doc) =>
   doc.lines.some(
     (l) =>
-      /(rechnungs?-?\s?(nr|nummer)|invoice\s?(no|number|#)|beleg-?(nr|nummer))/i.test(l.text) &&
+      DOCUMENT_NUMBER_LABEL.test(foldText(l.text)) &&
       /[A-Za-z]{0,4}[-/]?\d[\dA-Za-z\-/._]{2,}/.test(l.text),
   );
 
@@ -52,14 +72,24 @@ const f3TaxIdPresent: Feature = (doc) => {
     if (isValidUstIdNr(m[0].replace(/\s+/g, ""))) return true;
   }
   return doc.lines.some(
-    (l) => /steuernummer|steuer-?nr/i.test(l.text) && /\d{2,3}\/\d{3,4}\/\d{4,5}|\d{10,13}/.test(l.text),
+    (l) =>
+      /steuernummer|steuer-?nr/.test(foldText(l.text)) &&
+      /\d{2,3}\/\d{3,4}\/\d{4,5}|\d{10,13}/.test(l.text),
   );
 };
 
-/** F4: a date labeled as invoice date. */
+/**
+ * Bare "Datum" stays OUT of this set deliberately, and should not be "fixed"
+ * in: every document class prints it, covering letters included, so including
+ * it would destroy the feature's discriminative power.
+ */
+const DOCUMENT_DATE_LABEL =
+  /(rechnungs|beleg|auftrags|auftragsbestae?tigungs|bestell|liefer|lieferschein|angebots|gutschrifts|dokument|invoice|order|delivery|quote|document)\s?-?\s?(datum|date)|date\s+of\s+issue|\bausstellungsdatum\b/;
+
+/** F4: a date labeled as the document's own date. Key kept — see F2. */
 const f4LabeledInvoiceDate: Feature = (doc) =>
   doc.lines.some((l) => {
-    if (!/(rechnungs|beleg|invoice)\s?-?\s?(datum|date)|date\s+of\s+issue/i.test(l.text)) return false;
+    if (!DOCUMENT_DATE_LABEL.test(foldText(l.text))) return false;
     const m = /\d{1,4}[./-]\d{1,2}[./-]\d{1,4}/.exec(l.text);
     return m !== null && parseDateToIso(m[0]) !== null;
   });
@@ -67,7 +97,9 @@ const f4LabeledInvoiceDate: Feature = (doc) =>
 /** F5: VAT breakdown block — closed-set percentage adjacent to an amount. */
 const f5VatBreakdownBlock: Feature = (doc) =>
   doc.lines.some((l) =>
-    /(mwst|mehrwertsteuer|ust|umsatzsteuer|vat|tax)[^%\d]{0,20}(19|7|0)\s?%[^\d]{0,10}-?[\d.,]+/i.test(l.text),
+    /(mwst|mehrwertsteuer|ust|umsatzsteuer|vat|tax)[^%\d]{0,20}(19|7|0)\s?%[^\d]{0,10}-?[\d.,]+/.test(
+      foldText(l.text),
+    ),
   );
 
 /** F6: ≥1 table where ≥60% of some column parses as a currency amount. */
@@ -97,6 +129,7 @@ const FEATURES: Record<string, Feature> = {
 };
 
 export function classify(doc: PositionedTextDocument, config: ClassifierConfigCore): ClassificationResult {
+  const kindEvidence = detectKind(doc);
   const features: Record<string, 0 | 1> = {};
   let score = 0;
   for (const [name, fn] of Object.entries(FEATURES)) {
@@ -110,7 +143,7 @@ export function classify(doc: PositionedTextDocument, config: ClassifierConfigCo
       : score <= config.bands.nonInvoiceMax
         ? "non_invoice"
         : "uncertain";
-  return { features, score, band };
+  return { features, score, band, kind: kindEvidence.kind, kindEvidence };
 }
 
 /** Cheap Markdown rendition from positioned text (fallback when Docling's own

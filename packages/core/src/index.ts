@@ -1,4 +1,5 @@
 // Canonical schema + envelope
+export * from "./schema/documentType";
 export * from "./schema/invoice";
 export * from "./schema/candidate";
 export * from "./schema/markdown";
@@ -41,7 +42,7 @@ export { mapDoclingDocument } from "./docling/mapDocument";
 export { runRuleEngine, type RuleEngineResult } from "./rules/engine";
 export { defaultLexicon, type Lexicon } from "./rules/lexicon";
 
-// Classifier
+// Classifier: weighted band (confidence) + document class (kind)
 export {
   classify,
   positionedToMarkdown,
@@ -49,6 +50,7 @@ export {
   type ClassifierBand,
   type ClassifierConfigCore,
 } from "./classify/classifier";
+export { detectKind, isHeadingCandidate, type KindEvidence } from "./classify/kind";
 
 // Keyword-matching text fold (diacritics/ß, separator-preserving)
 export { foldText, spellingVariants } from "./text/fold";
