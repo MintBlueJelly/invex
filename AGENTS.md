@@ -49,17 +49,20 @@ pnpm vitest run --project component -t "health"
 > **Every project sets `passWithNoTests: true`.** Naming the wrong `--project` reports success having
 > run nothing. If a change "passes" suspiciously fast, check the test count.
 
-**The component lane has a pre-existing intermittent timeout.** Each of its tests gets a real PGlite
-instance and a 30 s limit, and they run in forks alongside every other lane. Under a full `pnpm test`
-or `pnpm test:cov` a component test occasionally dies with `Test timed out in 30000ms` — most often
-`harness.test.ts`, `health.test.ts` or `ingest.test.ts`, i.e. whichever fork lost the race for
-resources, not a test related to any change. Confirmed on an unmodified tree (2026-09-10): it reproduced
-at 56 test files with no local edits at all.
+**The component lane runs its files serially, on purpose.** Each of its tests gets a real PGlite
+instance, and spinning one up is the slow part. With files in parallel at a 30 s limit the lane failed
+intermittently under a full `pnpm test` — `Test timed out in 30000ms`, in a *different* file each run
+(harness, health, ingest, review.arithmetic, templates.integrity), i.e. whichever fork lost the race,
+never a test related to the change in hand. It reproduced on an unmodified tree, so it was never
+anybody's edit.
 
-So if you see it, **do not assume you caused it** — re-run the lane alone (`pnpm test:component`),
-which has always passed. It is worth fixing properly one day (raise the component `testTimeout`, or set
-`fileParallelism: false` for that project as `e2e` already does); until then it is noise you have to
-know about, because it looks exactly like a real regression.
+Fixed by matching `integration`'s budgets (60 s / 120 s) and setting `fileParallelism: false`, as `e2e`
+and `pg` already do — that caps concurrent PGlite instances at one per lane instead of one per core,
+which is what the timeouts were actually about. Verified over five consecutive full runs (three
+`pnpm test`, two `pnpm test:cov`), all green, at no wall-clock cost.
+
+If you see a component timeout again, suspect machine load rather than your change, and re-run the lane
+alone (`pnpm test:component`) to confirm. Do not "fix" it by re-enabling file parallelism.
 
 ## Conventions that are easy to break
 

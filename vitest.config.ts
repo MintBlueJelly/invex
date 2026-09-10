@@ -39,9 +39,23 @@ export default defineConfig({
           ...shared,
           name: "component", // PGlite, no listening socket
           include: ["packages/server/test/component/**/*.test.ts"],
-          testTimeout: 30_000,
-          hookTimeout: 60_000,
+          // Budgets match `integration` because the cost is the same: every
+          // test gets its own PGlite instance, and spinning one up is the slow
+          // part. At 30s/60s with files in parallel this lane failed
+          // intermittently under a full `pnpm test` — "Test timed out in
+          // 30000ms", in a DIFFERENT file each run (harness, health, ingest,
+          // review.arithmetic, templates.integrity), i.e. whichever fork lost
+          // the race, never a test related to the change in hand. Reproduced on
+          // an unmodified tree, so it long predated the run that chased it.
+          testTimeout: 60_000,
+          hookTimeout: 120_000,
           pool: "forks",
+          // The actual fix. Serialising files caps concurrent PGlite instances
+          // at one per lane instead of one per core, which is what the timeouts
+          // were really about — the timeout bump alone only widens the window.
+          // `e2e` and `pg` already do this, for this reason. Costs some
+          // wall-clock on a lane of nine files; buys a lane that does not lie.
+          fileParallelism: false,
         },
       },
       {
