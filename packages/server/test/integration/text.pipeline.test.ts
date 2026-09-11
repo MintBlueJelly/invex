@@ -195,6 +195,9 @@ describe("Path B — text lane", () => {
     const gate = events.find((e) => e.event === "text_gate");
     expect(gate?.detail["verdict"]).toBe("garbage");
     expect(Number(gate?.detail["cidTokens"])).toBeGreaterThan(0);
+    // The signal that now decides the verdict is on the event, like the one it
+    // replaced: docs/api.md documents both, and §11 calibration reads them.
+    expect(gate?.detail["consonantRunRatio"]).toEqual(expect.any(Number));
   });
 
   it("alien vendor idiom fails deterministically and escalates to review (VLM off)", async () => {

@@ -42,6 +42,7 @@ export const textLaneStage: StageHandler = async (tx, doc, ports) => {
     await emitEvent(tx, doc.id, "text_gate", {
       verdict: gate.verdict,
       dictHitRate: gate.dictHitRate,
+      consonantRunRatio: gate.consonantRunRatio,
       cidTokens: gate.cidTokens,
       reasons: gate.reasons,
     });

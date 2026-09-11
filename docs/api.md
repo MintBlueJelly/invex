@@ -126,6 +126,12 @@ do sleep 1; done
 
 Uploads one or more PDFs and queues them for processing.
 
+**Query**
+
+| Param | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `force` | `true` \| `false` | `false` | Skip the content-hash reuse and insert a new document for every file part, even when identical bytes are already stored. Any other value is a `400`. |
+
 **Request** — `multipart/form-data`
 
 | Part | Type | Required | Notes |
@@ -136,7 +142,10 @@ Uploads one or more PDFs and queues them for processing.
 
 ```json
 [{ "documentId": "a2c7abdc-3bc1-430a-a3f0-9910e8c8719b",
-   "filename": "invoice-1.pdf", "deduplicated": false }]
+   "filename": "invoice-1.pdf", "deduplicated": false },
+ { "documentId": "5f0c1e77-2a94-4a1e-9d61-1c0b2f3a7e58",
+   "filename": "invoice-1-resend.pdf", "deduplicated": true,
+   "deduplicatedAt": "2026-09-03T09:13:23.593Z" }]
 ```
 
 | Field | Type | Notes |
@@ -144,12 +153,14 @@ Uploads one or more PDFs and queues them for processing.
 | `documentId` | uuid | poll this id for progress |
 | `filename` | string | as received, or `upload.pdf` when the part carried no filename |
 | `deduplicated` | boolean | `true` when an identical PDF already existed; `documentId` is then the **existing** document and nothing is reprocessed |
+| `deduplicatedAt` | timestamp | **Only present when `deduplicated` is `true`**: the reused document's `updatedAt`, i.e. when that verdict was last written. Check it before reading anything into the result — see the note below. |
 
 **Errors**
 
 | Status | Body | When |
 | --- | --- | --- |
 | `400` | `{"error":"no PDF file parts in request"}` | no non-empty file part was found |
+| `400` | `{"error":"<zod issues>"}` | `?force=` carried a value other than `true` or `false` |
 | `406` | `FST_INVALID_MULTIPART_CONTENT_TYPE` | body parsed as non-multipart (e.g. `application/json`) |
 | `413` | `FST_FILES_LIMIT` / `FST_REQ_FILE_TOO_LARGE` | over 50 files, or a file over 100 MiB |
 | `415` | `FST_ERR_CTP_INVALID_MEDIA_TYPE` | content type has no parser (e.g. `application/pdf`) |
@@ -160,6 +171,12 @@ Uploads one or more PDFs and queues them for processing.
   PDF whose previous attempt failed starts a genuinely new document.
 - A request that trips the 50-file limit still commits the files processed before it — see
   [Behavior notes](#behavior-notes).
+- **A deduplicated response can be arbitrarily old, and `force` is how you get past it.** Reuse is
+  keyed on bytes alone, not on the code that produced the stored result, so a document processed by
+  an earlier build keeps that build's verdict indefinitely and a re-upload returns it having run
+  nothing. `deduplicatedAt` is what distinguishes that from a fresh result; `?force=true` is what
+  re-runs the current pipeline over the same PDF. `content_hash` is a plain index, not a unique
+  constraint, so the two documents coexist and reuse afterwards resolves to the newer one.
 
 ### Documents
 
@@ -174,6 +191,8 @@ Five endpoints return one of two shapes. **`DocumentSummary`**:
 | `filename` | string | |
 | `status` | string | one of the 9 [statuses](#document-lifecycle) |
 | `route` | string \| null | `zugferd` \| `text` \| `image` |
+| `documentType` | string \| null | `invoice` \| `creditNote` \| `orderConfirmation` \| `deliveryNote` \| `quote`; null until classified |
+| `arithmeticVerified` | boolean \| null | did the document's own numbers corroborate each other — see [arithmeticVerified](#arithmeticverified) |
 | `segmentPages` | number[] \| null | 1-based pages of this segment within the parent |
 | `error` | string \| null | last stage error message |
 | `attempts` | number | stage-error count |
@@ -837,7 +856,7 @@ Every event written by the pipeline, with its `detail` keys.
 | `routed` | triage decided the lane | `route`, `pageCount`, plus `charCount`/`threshold`/`pagesScanned` or `xmlAttachment` |
 | `xml_parsed` | Path A parsed the CII XML | `attachment`, `fields`, `lineItems` |
 | `xml_fallthrough` | Path A failed → text lane | `error` |
-| `text_gate` | text-quality verdict | `verdict` (`ok`\|`garbage`), `dictHitRate`, `cidTokens`, `reasons` |
+| `text_gate` | text-quality verdict | `verdict` (`ok`\|`garbage`), `dictHitRate`, `consonantRunRatio`, `cidTokens`, `reasons` |
 | `segmented` | multi-invoice PDF split | `segments`, `kinds` |
 | `classified` | invoice/non-invoice decision | `band`, `score`, `features` |
 | `vendor_resolved` | vendor lookup ran | `extracted` always; `matchedBy`, `templateId`, `version` only on a hit |
@@ -944,8 +963,9 @@ Verified quirks and sharp edges worth knowing before writing a client.
   `413 FST_FILES_LIMIT`, but the first 50 are committed and already processing — and the error body
   lists none of their ids. Stay under the limit, or reconcile with `GET /api/documents` afterwards.
 - **Duplicate uploads are not an error.** Re-uploading identical bytes returns `202` with
-  `deduplicated: true` and the original `documentId`. Only a previously `failed` document's hash is
-  re-ingested as new.
+  `deduplicated: true`, the original `documentId`, and `deduplicatedAt` naming when that document
+  was last written. Only a previously `failed` document's hash is re-ingested as new — or any hash
+  when `?force=true` is passed.
 - **`PUT /api/review/:id` re-runs the solver** and rejects a self-contradicting body with `422`
   before anything is written; on success it clears `violations` to `[]`. A review-committed invoice
   is therefore both schema-valid and arithmetically consistent — but its VAT rates are *not*
