@@ -43,6 +43,14 @@ export {
   type GoldenSmoke,
 } from "./goldens";
 
+// ── text-quality gate corpus (prose, not goldens — see gateSamples.ts) ──────
+export {
+  GATE_SAMPLES,
+  gateSampleDoc,
+  shiftEncoding,
+  type GateSample,
+} from "./gateSamples";
+
 // ── adversarial corpus (ingest-robustness) ──────────────────────────────────
 export {
   adversarialFilenames,

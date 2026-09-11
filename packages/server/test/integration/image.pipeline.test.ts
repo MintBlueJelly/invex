@@ -260,8 +260,19 @@ describe("Path C — image lane (no VLM)", () => {
 
       const doc = (await env2.app.inject({ method: "GET", url: `/api/documents/${id}` })).json() as Record<string, unknown>;
       expect(doc["status"]).toBe("pending_review");
-      const candidate = doc["candidate"] as { invoice: { seller: { ustIdNr: string | null } } };
+      const candidate = doc["candidate"] as {
+        invoice: { documentType?: string; seller: { ustIdNr: string | null } };
+      };
       expect(candidate.invoice.seller.ustIdNr).toBe("DE136695976");
+
+      // INVEX-058: this exit used to drop classification.kind, so a reviewer
+      // opened a document whose own heading names its class and saw
+      // documentType null — re-asking a question already answered on the line
+      // above. Only the known-vendor branch carried it through.
+      const classifier = doc["classifier"] as { kind: string | null };
+      expect(classifier.kind).toBe("invoice");
+      expect(doc["documentType"]).toBe(classifier.kind);
+      expect(candidate.invoice.documentType).toBe("invoice");
     } finally {
       await env2.close();
     }

@@ -1,32 +1,34 @@
 import { mapDoclingDocument, runTextGate } from "@invex/core";
 import { describe, expect, it } from "vitest";
-import { knownBug } from "../../../../test-utils/knownBug";
+import { GATE_SAMPLES, gateSampleDoc, shiftEncoding } from "../../src/gateSamples";
 import { goldenDocling, loadGoldens } from "../../src/goldens";
 
 /**
- * INVEX-047 — the text gate rejects legible invoices.
+ * INVEX-047 — the text gate used to reject legible documents.
  *
- * Found by the golden corpus, not by inspection, and it lives here rather than
- * in core because it needs REAL rendered documents rather than a hand-tuned
- * synthetic one — the whole point is what happens to an ordinary page.
+ * Found by the golden corpus, not by inspection, and confirmed in the field by
+ * a real German Auftragsbestätigung that was rerouted to OCR and ultimately
+ * exported as Markdown. Two compounding causes, both now closed:
  *
- * Two compounding causes:
- *  1. runTextGate reads `doc.lines` only. Line-item content arrives in
- *     `doc.tables`, so the gate judges the text LAYER while never seeing the
+ *  1. runTextGate read `doc.lines` only. Line-item content arrives in
+ *     `doc.tables`, so the gate judged the text LAYER while never seeing the
  *     part of the page carrying most of its words.
- *  2. What remains — letterhead, labels, amounts, proper nouns, article codes —
- *     is not prose, and 0.55 is far too high a dictionary hit rate for it.
+ *  2. `minDictHitRate: 0.55` asked "does this read like vocabulary I know?" of
+ *     a 340-word list. Real pages score 0.33-0.48 against it. The dictionary
+ *     rate is now a FLOOR — nothing recognisable anywhere — and consonant
+ *     structure carries the actual discrimination.
  *
- * The cost falls on exactly the path the design exists to widen: a perfectly
- * legible invoice is rerouted to OCR, and for an unknown vendor that means the
- * GPU. The previous suite could not see this — it had one text fixture, which
- * happens to score 0.65.
+ * This file stays the calibration home because it needs REAL documents rather
+ * than a hand-tuned synthetic one. It now measures two corpora: the goldens,
+ * which are rendered pages, and `GATE_SAMPLES`, which is prose — the thing the
+ * goldens are too short and too on-vocabulary to represent.
  */
 
 const GATE = {
-  minDictHitRate: 0.55,
+  minDictHitRate: 0.15,
   maxReplacementCharRatio: 0.05,
   maxSingleCharTokenRatio: 0.4,
+  maxConsonantRunRatio: 0.35,
   minTokensForVerdict: 10,
 };
 
@@ -36,35 +38,77 @@ const verdicts = loadGoldens().map((g) => {
 });
 
 describe("text gate over the golden corpus", () => {
-  it("[current] several ordinary documents are judged garbage", () => {
+  it("passes every legible document in the corpus", () => {
     const garbage = verdicts.filter((v) => v.verdict === "garbage").map((v) => v.id);
-    // Two ordinary invoices and a plain German business letter.
-    expect(garbage).toContain("de-omitted-quantity-unitprice");
-    expect(garbage).toContain("en-ungrouped-dot");
-    expect(garbage).toContain("non-invoice-letter");
+    expect(garbage).toEqual([]);
   });
 
-  it("[current] their dictionary hit rates sit just under the threshold", () => {
-    for (const id of ["de-omitted-quantity-unitprice", "en-ungrouped-dot"]) {
-      const v = verdicts.find((x) => x.id === id)!;
-      expect(v.dictHitRate, id).toBeLessThan(GATE.minDictHitRate);
-      expect(v.dictHitRate, id).toBeGreaterThan(0.5);
-    }
-  });
-
-  it("[current] the gate never sees line-item text", () => {
-    // The words are on the page, in the table — the gate simply does not read
-    // them. This is the half of the defect that a threshold change would not fix.
+  it("reads the line-item text, which lives in the table", () => {
+    // The half of INVEX-047 that no threshold change would have fixed: these
+    // words are on the page, and the gate used not to see them at all.
     const g = loadGoldens().find((x) => x.id === "de-standard-19")!;
     const mapped = mapDoclingDocument(goldenDocling(g));
     const lineText = mapped.lines.map((l) => l.text).join(" ");
     expect(mapped.tables[0]!.rows.flat().join(" ")).toMatch(/Aktenvernichter/);
     expect(lineText).not.toMatch(/Aktenvernichter/);
+
+    const linesOnly = runTextGate({ ...mapped, tables: [] }, GATE);
+    expect(runTextGate(mapped, GATE).tokensConsidered).toBeGreaterThan(linesOnly.tokensConsidered);
   });
 
-  knownBug("INVEX-047", "minDictHitRate rejects legible invoices; the gate never reads table text")
-    .it("passes every legible document in the corpus", () => {
-      const garbage = verdicts.filter((v) => v.verdict === "garbage").map((v) => v.id);
-      expect(garbage).toEqual([]);
-    });
+  it("[current] the three documents that used to fail now clear the floor by a wide margin", () => {
+    // They scored 0.47-0.55 against the old 0.55 threshold — the margin that
+    // made the old gate a coin toss is the reason the floor is where it is.
+    for (const id of ["de-omitted-quantity-unitprice", "en-ungrouped-dot", "non-invoice-letter"]) {
+      const v = verdicts.find((x) => x.id === id)!;
+      expect(v.dictHitRate, id).toBeGreaterThan(GATE.minDictHitRate * 2);
+      expect(v.consonantRunRatio, id).toBeLessThan(GATE.maxConsonantRunRatio);
+    }
+  });
+});
+
+describe("text gate over the prose corpus", () => {
+  const results = GATE_SAMPLES.map((s) => ({
+    sample: s,
+    ...runTextGate(gateSampleDoc(s), GATE),
+  }));
+
+  it.each(GATE_SAMPLES.map((s) => [s.id, s.expect, s.shape] as const))(
+    "%s (%s) — %s",
+    (id, expected) => {
+      const r = results.find((x) => x.sample.id === id)!;
+      expect(r.verdict).toBe(expected === "legible" ? "ok" : "garbage");
+    },
+  );
+
+  it("[current] real prose scores far under the dictionary threshold this gate used to apply", () => {
+    // The measurement that condemns the old design: every one of these pages is
+    // perfectly readable and every one of them would have been sent to OCR.
+    const legible = results.filter((r) => r.sample.expect === "legible" && r.dictHitRate !== null);
+    expect(legible.length).toBeGreaterThan(2);
+    for (const r of legible) {
+      expect(r.dictHitRate, r.sample.id).toBeLessThan(0.55);
+      expect(r.verdict, r.sample.id).toBe("ok");
+    }
+  });
+
+  it("separates a broken text layer from the same page read correctly", () => {
+    // Same words, same layout, one broken ToUnicode table. A word list cannot
+    // tell these apart by a useful margin; consonant structure can.
+    const clean = results.find((r) => r.sample.id === "de-full-page")!;
+    const broken = results.find((r) => r.sample.id === "de-full-page-broken-cmap")!;
+    expect(clean.verdict).toBe("ok");
+    expect(broken.verdict).toBe("garbage");
+    expect(broken.consonantRunRatio).toBeGreaterThan(clean.consonantRunRatio * 5);
+  });
+
+  it("shiftEncoding preserves everything except the letters", () => {
+    // Guards the corruption itself: if it also mangled spacing or punctuation
+    // the garbage half would be catchable for the wrong reason.
+    const source = "Zahlbar innerhalb von 30 Tagen, 3 % Skonto.";
+    const shifted = shiftEncoding(source);
+    expect(shifted).not.toBe(source);
+    expect(shifted.length).toBe(source.length);
+    expect(shifted.replace(/[a-zA-Z]/g, "")).toBe(source.replace(/[a-zA-Z]/g, ""));
+  });
 });

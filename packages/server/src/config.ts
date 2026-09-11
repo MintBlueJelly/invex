@@ -17,6 +17,7 @@ const zPipelineConfig = z.object({
     minDictHitRate: z.number().min(0).max(1),
     maxReplacementCharRatio: z.number().min(0).max(1),
     maxSingleCharTokenRatio: z.number().min(0).max(1),
+    maxConsonantRunRatio: z.number().min(0).max(1),
     minTokensForVerdict: z.number().int().nonnegative(),
   }),
   reconcile: z.object({

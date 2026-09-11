@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { detectKind } from "../../../src/classify/kind";
-import { doc, line } from "../../utils/positionedBuilders";
+import { columnLine, doc, line } from "../../utils/positionedBuilders";
 
 /** A heading in title position — the strongest kind evidence. */
 const heading = (text: string) => doc([line(text, { y: 0.08, tag: "title" })]);
@@ -138,6 +138,60 @@ describe("detectKind — position and negatives", () => {
 
   it("does not read a bare AB as an order confirmation", () => {
     expect(detectKind(heading("Lieferung ab 01.01.2026 ab Werk")).kind).toBeNull();
+  });
+
+  /**
+   * INVEX-059 — on a German letterhead the title sits on the same text row as
+   * the Absenderzeile, the small-print sender line above the address window.
+   * mergeLines clusters at yTolerance 0.008, so Path C hands the gate one fused
+   * line well over the 60-char cap and the document loses its only heading.
+   */
+  it("finds a title fused with the letterhead line on the same row", () => {
+    const fused = columnLine(
+      [
+        {
+          text: "Kartonwerk Ammertal GmbH + Co. KG | Talstraße 7 | 85276 Pfaffenhofen",
+          x: 0.08,
+          width: 0.4,
+        },
+        { text: "Auftragsbestätigung", x: 0.59, width: 0.2 },
+      ],
+      { y: 0.17 },
+    );
+    expect(fused.text.trim().length).toBeGreaterThan(60);
+
+    const evidence = detectKind(doc([fused]));
+    expect(evidence.kind).toBe("orderConfirmation");
+    // The anchor is the RUN's box, not the line's: the fused line spans the
+    // page and would point a template at the letterhead.
+    expect(evidence.anchor).toEqual({ page: 1, bbox: [0.59, 0.17, 0.79, 0.19] });
+  });
+
+  it("still ignores a long body sentence, which stays one run however it is split", () => {
+    // The cap's original job. Word gaps are far under RUN_GAP, so a sentence is
+    // a single run and stays over the cap.
+    const d = doc([
+      line("Wir bestätigen Ihnen hiermit den Auftrag wie folgt und liefern in der 34. Kalenderwoche", {
+        y: 0.1,
+      }),
+    ]);
+    expect(detectKind(d).kind).toBeNull();
+  });
+
+  it("refuses to guess when two runs of one row name different classes", () => {
+    // Splitting a row into runs must not turn a same-row disagreement into a
+    // left-to-right coin toss: both ranking keys stay on the line, so the two
+    // runs remain exactly tied and reach the ambiguity check.
+    const fused = columnLine(
+      [
+        { text: "Lieferschein", x: 0.08, width: 0.2 },
+        { text: "Rechnung", x: 0.6, width: 0.2 },
+      ],
+      { y: 0.12 },
+    );
+    const evidence = detectKind(doc([fused]));
+    expect(evidence.kind).toBeNull();
+    expect(evidence.competing).toEqual(["invoice", "deliveryNote"]);
   });
 
   it("returns no evidence for an ordinary business letter", () => {

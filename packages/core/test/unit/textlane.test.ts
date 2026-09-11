@@ -24,9 +24,10 @@ function doc(lines: PositionedLine[], pageCount = 1): PositionedTextDocument {
 }
 
 const gateOpts: TextGateOptions = {
-  minDictHitRate: 0.55,
+  minDictHitRate: 0.15,
   maxReplacementCharRatio: 0.05,
   maxSingleCharTokenRatio: 0.4,
+  maxConsonantRunRatio: 0.35,
   minTokensForVerdict: 10,
 };
 

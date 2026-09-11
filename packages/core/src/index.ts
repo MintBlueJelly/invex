@@ -52,7 +52,7 @@ export {
   type ClassifierBand,
   type ClassifierConfigCore,
 } from "./classify/classifier";
-export { detectKind, isHeadingCandidate, type KindEvidence } from "./classify/kind";
+export { detectKind, headingCandidateRuns, isHeadingCandidate, type KindEvidence } from "./classify/kind";
 
 // Keyword-matching text fold (diacritics/ß, separator-preserving)
 export { foldText, spellingVariants } from "./text/fold";

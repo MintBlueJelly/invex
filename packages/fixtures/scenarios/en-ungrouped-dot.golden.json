@@ -119,6 +119,5 @@
       "route": "text",
       "arithmeticVerified": true
     }
-  },
-  "knownBug": "INVEX-047"
+  }
 }

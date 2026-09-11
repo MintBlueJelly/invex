@@ -96,7 +96,7 @@ red the moment the bug is fixed**. Consequences:
   some *third* wrong behaviour is still noticed.
 - `pnpm test:known-bugs` is **expected to be red**. That red is the report, not a failure. What matters
   is that no *new* pin appears and none flips silently.
-- Highest id in use: **INVEX-057**. Allocate upward.
+- Highest id in use: **INVEX-059**. Allocate upward.
 
 ## Test fixtures: goldens are an oracle
 

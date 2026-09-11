@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { runTextGate, type TextGateOptions } from "../../../src/index";
 import { knownBug } from "../../../../../test-utils/knownBug";
-import { doc, line } from "../../utils/positionedBuilders";
+import { doc, line, table } from "../../utils/positionedBuilders";
 
 /**
  * Text-quality gate (briefing §2 Path B step 1) — decides whether a PDF's
@@ -10,9 +10,10 @@ import { doc, line } from "../../utils/positionedBuilders";
  * `config/pipeline.json` → `textGate` block.
  */
 const gateOpts: TextGateOptions = {
-  minDictHitRate: 0.55,
+  minDictHitRate: 0.15,
   maxReplacementCharRatio: 0.05,
   maxSingleCharTokenRatio: 0.4,
+  maxConsonantRunRatio: 0.35,
   minTokensForVerdict: 10,
 };
 
@@ -28,6 +29,13 @@ function singleCharDoc(n: number, total: number) {
   const singles = Array.from({ length: n }, (_, i) => String.fromCharCode(97 + (i % 26)));
   const rest = Array.from({ length: total - n }, () => "Rechnung");
   return doc([line([...singles, ...rest].join(" "))]);
+}
+
+/** `n` structurally impossible tokens (a broken CMap's output) among `total` real words. */
+function consonantRunDoc(n: number, total: number) {
+  const junk = Array.from({ length: n }, (_, i) => `qzwx${"bcdfg"[i % 5]}`);
+  const rest = Array.from({ length: total - n }, () => "Rechnung");
+  return doc([line([...junk, ...rest].join(" "))]);
 }
 
 describe("text-quality gate", () => {
@@ -72,7 +80,7 @@ describe("text-quality gate", () => {
     expect(r.reasons).toEqual(["cid_tokens=3"]);
   });
 
-  it("flags consonant-soup OCR junk via dictionary hit rate", () => {
+  it("flags consonant-soup OCR junk on structure and on the dictionary floor", () => {
     const d = doc([
       line("qzwx vbnk jhgf pqzt wxcv bnmk lkjh gfds"),
       line("trwq zxcv bnml kjhg fdsa qwrt zxcb nmlk"),
@@ -81,7 +89,59 @@ describe("text-quality gate", () => {
     expect(r.verdict).toBe("garbage");
     expect(r.dictHitRate).toBe(0);
     expect(r.tokensConsidered).toBe(16);
-    expect(r.reasons).toEqual(["dict_hit_rate=0.00"]);
+    // "fdsa" has a vowel and is the one token of the sixteen that could be a word.
+    expect(r.consonantRunRatio).toBe(15 / 16);
+    expect(r.reasons).toEqual(["consonant_run_ratio=0.94", "dict_hit_rate=0.00"]);
+  });
+
+  it("stays under the consonant-run ratio just below the threshold", () => {
+    // 7 impossible tokens among 20 = 0.35, exactly at the gate — not over it.
+    const r = runTextGate(consonantRunDoc(7, 20), gateOpts);
+    expect(r.consonantRunRatio).toBe(0.35);
+    expect(r.verdict).toBe("ok");
+    expect(r.reasons).toEqual([]);
+  });
+
+  it("flags the consonant-run ratio just above the threshold", () => {
+    // The dictionary rate is 0.6 here — far above the floor. Structure is what
+    // catches this, which is the whole point of INVEX-047.
+    const r = runTextGate(consonantRunDoc(8, 20), gateOpts);
+    expect(r.consonantRunRatio).toBe(0.4);
+    expect(r.dictHitRate).toBe(0.6);
+    expect(r.verdict).toBe("garbage");
+    expect(r.reasons).toEqual(["consonant_run_ratio=0.40"]);
+  });
+
+  it("reads table cells, not just lines", () => {
+    // INVEX-047, second cause: line-item text arrives in doc.tables, so judging
+    // a page on doc.lines alone read a fraction of what it says.
+    const cells = table(
+      ["Bezeichnung", "Menge", "Einzelpreis"],
+      [
+        ["Aktenvernichter Wartung", "2", "199,50"],
+        ["Toner Lieferung Versand", "4", "89,00"],
+      ],
+    );
+    const linesOnly = runTextGate(doc([line("Seite 1 von 2")]), gateOpts);
+    const withTable = runTextGate(doc([line("Seite 1 von 2")], { tables: [cells] }), gateOpts);
+    expect(withTable.tokensConsidered).toBeGreaterThan(linesOnly.tokensConsidered);
+  });
+
+  it("fails a document whose lines read cleanly but whose table is junk", () => {
+    // The consequence of reading tables: garbage can no longer hide in them.
+    const junk = table(
+      ["qzwx", "vbnk", "jhgf"],
+      [
+        ["pqzt", "wxcv", "bnmk"],
+        ["lkjh", "gfds", "trwq"],
+        ["zxcv", "bnml", "kjhg"],
+        ["qwrt", "zxcb", "nmlk"],
+      ],
+    );
+    const d = doc([line("Rechnung über Lieferungen und Leistungen gemäß unserem Vertrag")], {
+      tables: [junk],
+    });
+    expect(runTextGate(d, gateOpts).verdict).toBe("garbage");
   });
 
   it("stays under the replacement-char ratio just below the threshold", () => {
@@ -148,6 +208,7 @@ describe("text-quality gate", () => {
       cidTokens: 0,
       replacementRatio: 0,
       singleCharRatio: 0,
+      consonantRunRatio: 1 / 21,
       tokensConsidered: 21,
       reasons: [],
     });
@@ -165,6 +226,7 @@ describe("text-quality gate", () => {
       cidTokens: 3,
       replacementRatio: 0,
       singleCharRatio: 0,
+      consonantRunRatio: 0,
       tokensConsidered: 16,
       reasons: ["cid_tokens=3"],
     });

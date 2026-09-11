@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { goldenPdf, loadGolden } from "@invex/fixtures";
 import { describe, expect, makeItShared } from "../../utils/fixture";
 import { createTestEnv, multipartBody } from "../../utils/testEnv";
-import { findReusableByHash } from "../../../src/db/repos/documents";
+import { findReusableByHash, getDocument } from "../../../src/db/repos/documents";
 import { UUID_RE } from "../../../src/http/params";
 import { knownBug } from "../../../../../test-utils/knownBug";
 
@@ -18,7 +18,12 @@ const STANDARD = loadGolden("de-standard-19");
 const MULTIPAGE = loadGolden("de-multipage-3");
 const NON_INVOICE = loadGolden("non-invoice-letter");
 
-type UploadResult = { documentId: string; filename: string; deduplicated: boolean };
+type UploadResult = {
+  documentId: string;
+  filename: string;
+  deduplicated: boolean;
+  deduplicatedAt?: string;
+};
 
 function sha256(buf: Uint8Array): string {
   return createHash("sha256").update(buf).digest("hex");
@@ -130,6 +135,84 @@ describe("POST /api/ingest — dedup", () => {
     // The response filename tracks the CURRENT request's part, not the
     // originally stored one — worth knowing when correlating logs to inbox.
     expect(secondBody[0]!.filename).toBe("invoice-resend.pdf");
+  });
+
+  it("a deduplicated result reports when that row was last written", async ({ env }) => {
+    // Without this a week-old verdict and a fresh one are indistinguishable to
+    // the caller, which is how a stale result gets read as a new one: a
+    // document processed by an older build keeps that build's answer forever.
+    const pdf = await goldenPdf(STANDARD);
+    const r1 = await env.app.inject({
+      method: "POST",
+      url: "/api/ingest",
+      ...multipartBody([{ filename: "invoice.pdf", data: pdf }]),
+    });
+    const first = (r1.json() as UploadResult[])[0]!;
+    expect(first.deduplicatedAt).toBeUndefined();
+
+    const r2 = await env.app.inject({
+      method: "POST",
+      url: "/api/ingest",
+      ...multipartBody([{ filename: "invoice.pdf", data: pdf }]),
+    });
+    const second = (r2.json() as UploadResult[])[0]!;
+    expect(second.deduplicated).toBe(true);
+    expect(second.deduplicatedAt).toEqual(expect.any(String));
+    expect(Number.isNaN(Date.parse(second.deduplicatedAt!))).toBe(false);
+
+    const row = await getDocument(env.db, first.documentId);
+    expect(second.deduplicatedAt).toBe(row!.updatedAt.toISOString());
+  });
+
+  it("?force=true re-ingests identical bytes as a NEW document", async ({ env }) => {
+    // Re-testing a real document against a new build used to mean deleting rows
+    // out of Postgres by hand. content_hash is a plain index, not a unique
+    // constraint, so the second row needs no schema change.
+    const pdf = await goldenPdf(STANDARD);
+    const r1 = await env.app.inject({
+      method: "POST",
+      url: "/api/ingest",
+      ...multipartBody([{ filename: "invoice.pdf", data: pdf }]),
+    });
+    const first = (r1.json() as UploadResult[])[0]!;
+
+    const r2 = await env.app.inject({
+      method: "POST",
+      url: "/api/ingest?force=true",
+      ...multipartBody([{ filename: "invoice.pdf", data: pdf }]),
+    });
+    expect(r2.statusCode).toBe(202);
+    const second = (r2.json() as UploadResult[])[0]!;
+    expect(second.deduplicated).toBe(false);
+    expect(second.documentId).not.toBe(first.documentId);
+
+    // Both rows are real and independently processable; the reuse lookup takes
+    // the newest, so a later plain ingest lands on the forced one.
+    const reused = await findReusableByHash(env.db, sha256(pdf));
+    expect(reused!.id).toBe(second.documentId);
+  });
+
+  it("?force=false is the default and still deduplicates", async ({ env }) => {
+    const pdf = await goldenPdf(MULTIPAGE);
+    const body = multipartBody([{ filename: "multi.pdf", data: pdf }]);
+    await env.app.inject({ method: "POST", url: "/api/ingest", ...body });
+    const r2 = await env.app.inject({
+      method: "POST",
+      url: "/api/ingest?force=false",
+      ...multipartBody([{ filename: "multi.pdf", data: pdf }]),
+    });
+    expect((r2.json() as UploadResult[])[0]!.deduplicated).toBe(true);
+  });
+
+  it("400s on a force value that is neither true nor false", async ({ env }) => {
+    // Unvalidated query params are INVEX-008's shape; this one is validated.
+    const pdf = await goldenPdf(STANDARD);
+    const res = await env.app.inject({
+      method: "POST",
+      url: "/api/ingest?force=yes",
+      ...multipartBody([{ filename: "invoice.pdf", data: pdf }]),
+    });
+    expect(res.statusCode).toBe(400);
   });
 
   it("two different PDFs produce two different ids, neither deduplicated", async ({ env }) => {

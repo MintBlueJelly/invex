@@ -48,6 +48,29 @@ const DOCUMENT_STATUSES: DocumentStatus[] = [
   "failed",
 ];
 
+/**
+ * `force` skips the content-hash reuse below.
+ *
+ * Dedup is silent and the pipeline is not idempotent in the direction that
+ * matters: a document processed by an older build keeps that build's verdict
+ * forever, and re-uploading the same PDF returns that row without running
+ * anything. Re-testing a fix against a real document meant deleting rows out of
+ * Postgres by hand. `content_hash` is a plain index, not a unique constraint —
+ * findReusableByHash already orders by createdAt DESC because duplicates are an
+ * expected shape — so a second row for the same bytes needs no schema change.
+ */
+const zIngestQuery = z.object({
+  force: z.enum(["true", "false"]).optional(),
+});
+
+interface IngestResult {
+  documentId: string;
+  filename: string;
+  deduplicated: boolean;
+  /** When the reused row was last written — present only when deduplicated. */
+  deduplicatedAt?: string;
+}
+
 const zListQuery = z.object({
   status: z.enum(DOCUMENT_STATUSES as [DocumentStatus, ...DocumentStatus[]]).optional(),
   documentType: zDocumentType.optional(),
@@ -111,16 +134,28 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   });
 
   app.post("/api/ingest", async (req, reply) => {
-    const results: { documentId: string; filename: string; deduplicated: boolean }[] = [];
+    const query = zIngestQuery.safeParse(req.query);
+    if (!query.success) return reply.code(400).send({ error: query.error.message });
+    const force = query.data.force === "true";
+
+    const results: IngestResult[] = [];
     for await (const part of req.parts()) {
       if (part.type !== "file") continue;
       const buf = await part.toBuffer();
       if (buf.length === 0) continue;
       const contentHash = createHash("sha256").update(buf).digest("hex");
       const filename = part.filename || "upload.pdf";
-      const existing = await findReusableByHash(db, contentHash);
+      const existing = force ? null : await findReusableByHash(db, contentHash);
       if (existing) {
-        results.push({ documentId: existing.id, filename, deduplicated: true });
+        results.push({
+          documentId: existing.id,
+          filename,
+          deduplicated: true,
+          // When that row was last WRITTEN, not when it was returned. Without
+          // it a week-old verdict and a fresh one are indistinguishable to the
+          // caller, which is exactly how a stale result gets read as a new one.
+          deduplicatedAt: existing.updatedAt.toISOString(),
+        });
         continue;
       }
       const doc = await insertDocument(db, { filename, contentHash, pdf: buf });

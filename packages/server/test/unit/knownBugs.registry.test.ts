@@ -40,6 +40,37 @@ async function idsUsedByTests(): Promise<Map<string, string[]>> {
   return used;
 }
 
+/**
+ * Ids pinned by a golden scenario's `knownBug` field, which flips its pipeline
+ * test to `it.fails` in goldens.pipeline.test.ts.
+ *
+ * A SECOND pin mechanism, and it used to be invisible here: INVEX-047 could be
+ * marked fixed in the table and promoted in the suite while three goldens still
+ * pinned it, and only a full integration run said so. Same contract as the
+ * knownBug() calls above — documented, and gone once the row reads fixed.
+ */
+async function idsUsedByGoldens(): Promise<Map<string, string[]>> {
+  const dir = join(repoRoot, "packages", "fixtures", "scenarios");
+  const used = new Map<string, string[]>();
+  for (const name of await readdir(dir).catch(() => [])) {
+    if (!name.endsWith(".golden.json")) continue;
+    const golden = JSON.parse(await readFile(join(dir, name), "utf8")) as { knownBug?: string };
+    const id = golden.knownBug;
+    if (!id) continue;
+    used.set(id, [...(used.get(id) ?? []), `packages/fixtures/scenarios/${name}`]);
+  }
+  return used;
+}
+
+/** Both pin mechanisms merged — an id may be pinned by either or both. */
+async function allPins(): Promise<Map<string, string[]>> {
+  const merged = new Map<string, string[]>();
+  for (const source of [await idsUsedByTests(), await idsUsedByGoldens()]) {
+    for (const [id, files] of source) merged.set(id, [...(merged.get(id) ?? []), ...files]);
+  }
+  return merged;
+}
+
 /** Ids in the markdown table, with their declared status. */
 async function idsInDoc(): Promise<Map<string, string>> {
   const md = await readFile(doc, "utf8");
@@ -57,14 +88,14 @@ async function idsInDoc(): Promise<Map<string, string>> {
 describe("known-bug registry", () => {
   it("every id used by a test is documented in docs/known-bugs.md", async () => {
     const documented = await idsInDoc();
-    const undocumented = [...(await idsUsedByTests())]
+    const undocumented = [...(await allPins())]
       .filter(([id]) => !documented.has(id))
       .map(([id, files]) => `${id} (used in ${files.join(", ")})`);
     expect(undocumented).toEqual([]);
   });
 
   it("every open id in docs/known-bugs.md is pinned by at least one test", async () => {
-    const used = await idsUsedByTests();
+    const used = await allPins();
     const unpinned = [...(await idsInDoc())]
       .filter(([, status]) => status === "open")
       .filter(([id]) => !used.has(id))
@@ -72,8 +103,8 @@ describe("known-bug registry", () => {
     expect(unpinned).toEqual([]);
   });
 
-  it("no fixed id still has a knownBug() pin — those must be promoted to plain `it`", async () => {
-    const used = await idsUsedByTests();
+  it("no fixed id still has a pin — those must be promoted to plain `it`", async () => {
+    const used = await allPins();
     const stale = [...(await idsInDoc())]
       .filter(([, status]) => status === "fixed")
       .filter(([id]) => used.has(id))

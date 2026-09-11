@@ -45,6 +45,19 @@ describe("loadConfig defaults (empty env)", () => {
     );
   });
 
+  it("carries the textGate thresholds the gate tests hardcode", () => {
+    // gate.test.ts and gateCalibration.test.ts each declare these values inline
+    // and say they match the committed config. Nothing else stopped the two
+    // from drifting, which is how a threshold gets retuned in one place only.
+    expect(cfg.pipeline.textGate).toEqual({
+      minDictHitRate: 0.15,
+      maxReplacementCharRatio: 0.05,
+      maxSingleCharTokenRatio: 0.4,
+      maxConsonantRunRatio: 0.35,
+      minTokensForVerdict: 10,
+    });
+  });
+
   it("parses config/classifier.json with every documented top-level key present", () => {
     expect(Object.keys(cfg.classifier).sort()).toEqual(["bands", "weights"].sort());
   });

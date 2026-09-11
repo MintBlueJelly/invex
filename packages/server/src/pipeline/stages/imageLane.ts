@@ -104,13 +104,20 @@ export const imageLaneStage: StageHandler = async (tx, doc, ports) => {
     return;
   }
 
-  // Last resort without a VLM: human review sees the OCR-derived identifiers.
+  // Last resort without a VLM: human review sees the OCR-derived identifiers —
+  // and the class, if the OCR read a heading (INVEX-058). Dropping it here sent
+  // a reviewer a document whose own first line says "Auftragsbestätigung" with
+  // documentType null, re-asking a question the classifier had just answered.
   await updateDocument(tx, doc.id, {
     status: "pending_review",
-    candidate: {
-      invoice: { seller: { name: ids.nameGuess, ustIdNr: ids.ustIdNr, steuernummer: ids.steuernummer, ibans: ids.ibans } },
-      fieldMeta: {},
-    },
+    candidate: withDocumentType(
+      {
+        invoice: { seller: { name: ids.nameGuess, ustIdNr: ids.ustIdNr, steuernummer: ids.steuernummer, ibans: ids.ibans } },
+        fieldMeta: {},
+      },
+      classification.kind,
+    ),
+    documentType: classification.kind,
     classifier: classification as unknown as Record<string, unknown>,
     markdown,
     positionedDoc: positioned as unknown as Record<string, unknown>,

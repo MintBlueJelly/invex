@@ -128,6 +128,5 @@
       "terminalStatus": "committed",
       "arithmeticVerified": true
     }
-  },
-  "knownBug": "INVEX-047"
+  }
 }

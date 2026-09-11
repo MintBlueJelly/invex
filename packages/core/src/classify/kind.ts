@@ -1,5 +1,10 @@
 import { foldText, spellingVariants } from "../text/fold";
-import type { Bbox, PositionedLine, PositionedTextDocument } from "../positioned/model";
+import type {
+  Bbox,
+  PositionedLine,
+  PositionedTextDocument,
+  PositionedToken,
+} from "../positioned/model";
 import { DOCUMENT_TYPES, type DocumentType } from "../schema/documentType";
 
 /**
@@ -149,17 +154,82 @@ const NO_EVIDENCE: KindEvidence = {
 };
 
 /**
- * A line may carry the document's class only if it is in heading position.
- *
- * Identical to F1's gate (classifier.ts) and shared with it. The <60-char cap
- * is load-bearing for the new classes specifically: "Wir bestätigen Ihnen den
- * Auftrag wie folgt und liefern …" is a body sentence sitting in the top band
- * that would otherwise announce an orderConfirmation.
+ * The cap that stops a body sentence in the top band from announcing a class:
+ * "Wir bestätigen Ihnen den Auftrag wie folgt und liefern …" would otherwise
+ * read as an orderConfirmation.
  */
-export function isHeadingCandidate(line: PositionedLine): boolean {
+const HEADING_MAX_CHARS = 60;
+
+/**
+ * Wider than any inter-word space — ~0.005 at 10pt on A4, and 0.018 in the test
+ * builders — and far narrower than the 0.108 column gap measured above. In
+ * production it is only ever reached by merged OCR lines, whose tokens are
+ * whole pre-merge text blocks rather than words; a Docling line has one token
+ * and never reaches the split at all.
+ */
+const RUN_GAP = 0.04;
+
+interface HeadingRun {
+  text: string;
+  bbox: Bbox;
+}
+
+/** Token groups separated by a horizontal gap — the visual columns of one row. */
+function visualRuns(line: PositionedLine): HeadingRun[] {
+  if (line.tokens.length <= 1) return [{ text: line.text, bbox: line.bbox }];
+
+  const sorted = [...line.tokens].sort((a, b) => a.bbox[0] - b.bbox[0]);
+  const groups: PositionedToken[][] = [];
+  let current: PositionedToken[] = [];
+  let right = -Infinity;
+  for (const token of sorted) {
+    if (current.length > 0 && token.bbox[0] - right > RUN_GAP) {
+      groups.push(current);
+      current = [];
+    }
+    current.push(token);
+    right = Math.max(right, token.bbox[2]);
+  }
+  if (current.length > 0) groups.push(current);
+
+  return groups.map((group) => ({
+    text: group.map((t) => t.text).join(" "),
+    bbox: [
+      Math.min(...group.map((t) => t.bbox[0])),
+      Math.min(...group.map((t) => t.bbox[1])),
+      Math.max(...group.map((t) => t.bbox[2])),
+      Math.max(...group.map((t) => t.bbox[3])),
+    ] as Bbox,
+  }));
+}
+
+/**
+ * The runs of `line` short enough, and placed well enough, to be a heading.
+ *
+ * INVEX-059 — why the cap is per RUN and not per line. On a German letterhead
+ * the title sits on the same text row as the Absenderzeile, the small-print
+ * sender line above the address window. Measured on a real Auftragsbestätigung:
+ * the sender line ends at x=0.48 and the title starts at x=0.59, same row.
+ * `mergeLines` clusters at yTolerance 0.008, so Path C handed this gate one
+ * fused 85-character line — over the cap, and the document's only heading
+ * evidence was gone. Splitting on the horizontal gap recovers it.
+ *
+ * A Docling text item carries a single token spanning the whole line, so on
+ * Path B a line is always exactly one run and nothing here changes.
+ */
+export function headingCandidateRuns(line: PositionedLine): HeadingRun[] {
   const isHeadingTag = line.tag === "section_header" || line.tag === "title";
   const isTop = line.page === 1 && line.bbox[1] < 0.25;
-  return (isHeadingTag || isTop) && line.text.trim().length < 60;
+  if (!isHeadingTag && !isTop) return [];
+  return visualRuns(line).filter((run) => {
+    const len = run.text.trim().length;
+    return len > 0 && len < HEADING_MAX_CHARS;
+  });
+}
+
+/** Identical to F1's gate (classifier.ts) and shared with it. */
+export function isHeadingCandidate(line: PositionedLine): boolean {
+  return headingCandidateRuns(line).length > 0;
 }
 
 /** Tag tier: an explicit layout heading outranks a line that merely sits high. */
@@ -170,31 +240,35 @@ function tier(line: PositionedLine): number {
 }
 
 export function detectKind(doc: PositionedTextDocument): KindEvidence {
-  const hits: { line: PositionedLine; kind: DocumentType; term: string }[] = [];
+  const hits: { line: PositionedLine; run: HeadingRun; kind: DocumentType; term: string }[] = [];
   const fired = new Set<DocumentType>();
 
   for (const line of doc.lines) {
-    if (!isHeadingCandidate(line)) continue;
-    const folded = foldText(line.text);
-    let lineWinner: { kind: DocumentType; term: string } | null = null;
-    for (const [kind, pattern] of KIND_PATTERNS) {
-      const m = pattern.exec(folded);
-      if (!m) continue;
-      fired.add(kind);
-      // Precedence within one line: KIND_PATTERNS is in PRECEDENCE order, so
-      // the first match is the winner. The loop still runs to completion so
-      // `competing` records every class that fired, which is what makes the
-      // escalation log useful for calibration.
-      lineWinner ??= { kind, term: m[0] };
+    for (const run of headingCandidateRuns(line)) {
+      const folded = foldText(run.text);
+      let runWinner: { kind: DocumentType; term: string } | null = null;
+      for (const [kind, pattern] of KIND_PATTERNS) {
+        const m = pattern.exec(folded);
+        if (!m) continue;
+        fired.add(kind);
+        // Precedence within one run: KIND_PATTERNS is in PRECEDENCE order, so
+        // the first match is the winner. The loop still runs to completion so
+        // `competing` records every class that fired, which is what makes the
+        // escalation log useful for calibration.
+        runWinner ??= { kind, term: m[0] };
+      }
+      if (runWinner) hits.push({ line, run, ...runWinner });
     }
-    if (lineWinner) hits.push({ line, ...lineWinner });
   }
 
   if (hits.length === 0) return NO_EVIDENCE;
 
   const competing = DOCUMENT_TYPES.filter((t) => fired.has(t));
 
-  // Position beats lexicon: best tag tier first, then highest on the page.
+  // Position beats lexicon: best tag tier first, then highest on the page. Both
+  // keys stay on the LINE, so two runs of one row remain exactly tied and reach
+  // the ambiguity check below rather than being separated by a font-height
+  // difference between them.
   const ranked = [...hits].sort(
     (a, b) => tier(a.line) - tier(b.line) || a.line.bbox[1] - b.line.bbox[1],
   );
@@ -216,7 +290,9 @@ export function detectKind(doc: PositionedTextDocument): KindEvidence {
     kind: best.kind,
     matchedTerm: best.term,
     rawLine: best.line.text,
-    anchor: { page: best.line.page, bbox: best.line.bbox },
+    // The RUN's box, not the line's: on a fused letterhead row the line box
+    // spans the page and would anchor a template to the wrong place.
+    anchor: { page: best.line.page, bbox: best.run.bbox },
     competing,
   };
 }
