@@ -136,8 +136,15 @@ single extra branch, and one that *does* print prices is validated identically t
 
 ## Windows
 
-`test:prop:deep` and `test:known-bugs` use POSIX `VAR=value cmd` prefixes and fail in PowerShell. Run
-them from Git Bash, or set the variable separately.
+`test:prop:deep` and `test:known-bugs` use POSIX `VAR=value cmd` prefixes. **Git Bash does not help**
+— pnpm runs script bodies through the system shell, which is `cmd.exe` here, so the prefix fails with
+`Der Befehl "INVEX_KNOWN_BUGS" ist ... nicht gefunden` no matter which shell you typed `pnpm` in.
+Export the variable and call vitest directly:
+
+```bash
+INVEX_KNOWN_BUGS=strict pnpm exec vitest run --project unit --project component --project integration
+FC_NUM_RUNS=5000 pnpm exec vitest run --project prop
+```
 
 ## Coverage
 
